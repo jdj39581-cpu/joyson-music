@@ -1,0 +1,31 @@
+{
+  "name": "mood-music-player",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node server/index.js",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.7.2",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "play-dl": "^1.9.7",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "spotify-web-api-node": "^5.0.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.13",
+    "vite": "^5.4.1"
+  }
+}
