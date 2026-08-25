@@ -5,11 +5,12 @@ import { Mic, MicOff, Sparkles, Send, Shuffle, X, Globe2 } from "lucide-react";
 const LANGUAGES = [
   { label: "Kannada", emoji: "🟡", query: "Kannada" },
   { label: "Hindi", emoji: "🇮🇳", query: "Hindi Bollywood" },
+  { label: "Konkani", emoji: "🌴", query: "Konkani Goa Mangalore" },
   { label: "English", emoji: "🇺🇸", query: "English Western Pop" },
   { label: "Punjabi", emoji: "👳", query: "Punjabi" },
   { label: "Tamil", emoji: "✨", query: "Tamil" },
   { label: "Telugu", emoji: "🕺", query: "Telugu" },
-  { label: "Malayalam", emoji: "🌴", query: "Malayalam" },
+  { label: "Malayalam", emoji: "🥥", query: "Malayalam" },
   { label: "Spanish", emoji: "💃", query: "Spanish Latino" },
   { label: "K-Pop", emoji: "🇰🇷", query: "Korean K-Pop" },
 ];
@@ -124,7 +125,7 @@ export default function MoodInput({ onSubmit, loading }) {
 
   return (
     <div className="w-full space-y-3">
-      {/* Language Selector Filter Row */}
+      {/* Language Selector Filter Row with Konkani */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
         <span className="flex items-center gap-1 text-slate-400 font-semibold px-1 flex-shrink-0">
           <Globe2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -164,7 +165,7 @@ export default function MoodInput({ onSubmit, loading }) {
                 ? "Listening to your voice..." 
                 : selectedLang 
                   ? `Describe mood in ${selectedLang} (e.g. romantic, party dance, workout)...`
-                  : "Describe mood & language (e.g. Kannada romantic, Hindi party, English chill)..."
+                  : "Describe mood & language (e.g. Konkani classics, Kannada romantic, Hindi party)..."
             }
             value={mood}
             onChange={handleChange}

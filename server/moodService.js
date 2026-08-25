@@ -22,6 +22,7 @@ const POPULAR_PLAYLIST_FALLBACKS = {
   retro: "37i9dQZF1DXd9rSDyQguIk",
   bollywood: "37i9dQZF1DX0XUfTFmZeZw",
   kannada: "37i9dQZF1DX14Et21j0Z6B",
+  konkani: "37i9dQZF1DX5Y84XzFhZ6V",
   punjabi: "37i9dQZF1DX48MRot5PzC8",
   tamil: "37i9dQZF1DX47bg230p1vS",
   telugu: "37i9dQZF1DX7aJu0h8j4gP",
@@ -50,8 +51,34 @@ function isDuplicate(title, existingSet) {
   return false;
 }
 
-// Massive, curated, diverse song library per language
+// Rich curated database for fallback & enrichment
 const SONG_DATABASE = {
+  konkani: [
+    { title: 'Mog Asom', artist: 'Lawry Travasso', reason: 'Timeless Goan Konkani romantic classic' },
+    { title: 'Bebdo', artist: 'Lorna Cordeiro', reason: 'Legendary upbeat Goan jazz-konkani anthem' },
+    { title: 'Maria Pitache', artist: 'Remo Fernandes', reason: 'Iconic energetic Goan pop-folk dance' },
+    { title: 'Ye Ye Katrina', artist: 'Henry D\'Souza', reason: 'All-time famous Mangalorean Konkani baila hit' },
+    { title: 'Daryacha Larani', artist: 'Wilfy Rebimbus', reason: 'Soulful coastal romantic melody' },
+    { title: 'Claudia', artist: 'Chris Perry, Lorna', reason: 'Nostalgic romantic brass jazz melody' },
+    { title: 'Hanv Saiba Poltodi Vetam', artist: 'Goan Heritage Troupe', reason: 'Traditional Goan mando folk song' },
+    { title: 'Sanjecho Vell', artist: 'Lorna Cordeiro', reason: 'Melodious romantic sunset ballad' },
+    { title: 'Undir Mhozo Mama', artist: 'Remo Fernandes', reason: 'Playful upbeat Goan folk song' },
+    { title: 'Tuzo Mog', artist: 'Oswald D\'Souza', reason: 'Romantic melody expressing deep love' },
+    { title: 'Sopon', artist: 'Melwyn Peris', reason: 'Heartwarming Mangalorean Konkani love track' },
+    { title: 'Tukach Lagun', artist: 'Nephie Rod', reason: 'Soulful acoustic Konkani feel' },
+    { title: 'Yo Moga', artist: 'Prajoth D\'Sa', reason: 'Modern acoustic Konkani indie pop' },
+    { title: 'Mogachi Bhes', artist: 'Wilfy Rebimbus', reason: 'Classic romantic duet' },
+    { title: 'Pisso', artist: 'Lorna Cordeiro', reason: 'High energy soulful vocal track' },
+    { title: 'Noxibak Roddtam', artist: 'Alfred Rose', reason: 'Sentimental emotional Konkani classic' },
+    { title: 'Amerikak Pavlo', artist: 'C. Alvares', reason: 'Humorous upbeat Konkani song' },
+    { title: 'Rosalina', artist: 'Chris Perry', reason: 'Catchy danceable Goan melody' },
+    { title: 'Ami Goenkar', artist: 'Goan All Stars', reason: 'Proud celebration of Goan identity' },
+    { title: 'Chonknna', artist: 'Goa Brass Band', reason: 'Festive wedding baila dance groove' },
+    { title: 'Udi Udi', artist: 'Prajoth D\'Sa', reason: 'Breezy modern Konkani romantic track' },
+    { title: 'Kalliz Suker', artist: 'Lorna', reason: 'Deep emotional ballad' },
+    { title: 'Mhojea Kudant', artist: 'Henry D\'Souza', reason: 'Classic coastal Konkani tune' },
+    { title: 'Goenchi Mati', artist: 'Alfred Rose', reason: 'Heartfelt ode to the land of Goa' }
+  ],
   kannada: [
     { title: 'Singara Siriye', artist: 'Vijay Prakash, Ananya Bhat', reason: 'Romantic folk sensation from Kantara' },
     { title: 'Ra Ra Rakkamma', artist: 'Sunidhi Chauhan, Nakash Aziz', reason: 'High energy dance track from Vikrant Rona' },
@@ -136,7 +163,7 @@ const SONG_DATABASE = {
 };
 
 /**
- * High-Precision YouTube Video ID Extractor (Targeting official videoRenderer only)
+ * High-Precision YouTube Video ID Extractor
  */
 async function getCandidateVideoIds(title, artist = '') {
   const primaryArtist = (artist || '').split(',')[0].split('&')[0].trim();
@@ -152,7 +179,6 @@ async function getCandidateVideoIds(title, artist = '') {
     });
 
     const html = res.data;
-    // Extract videoId from videoRenderer objects only
     const regex = /"videoRenderer":\{"videoId":"([a-zA-Z0-9_-]{11})"/g;
     const ids = [];
     let match;
@@ -184,7 +210,7 @@ async function getCandidateVideoIds(title, artist = '') {
 /**
  * Live search from global catalog (Apple Music/iTunes API with 100M+ songs)
  */
-async function searchLiveMusicCatalog(query, country = 'IN', limit = 20) {
+async function searchLiveMusicCatalog(query, country = 'IN', limit = 30) {
   try {
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&country=${country}&entity=song&limit=${limit}`;
     const res = await axios.get(url, { timeout: 3500 });
@@ -201,7 +227,7 @@ async function searchLiveMusicCatalog(query, country = 'IN', limit = 20) {
         artist: r.artistName,
         album: r.collectionName || '',
         duration: durationFormatted,
-        reason: 'Popular trending track from music catalog',
+        reason: 'Trending track from live music catalog',
         artworkUrl: r.artworkUrl100 ? r.artworkUrl100.replace('100x100bb.jpg', '600x600bb.jpg') : null,
         previewUrl: r.previewUrl || null,
         spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(r.trackName + ' ' + r.artistName)}`,
@@ -257,7 +283,7 @@ async function fetchRealTrackAudio(title, artist = '') {
         };
       }
     } catch (err) {
-      // Try next query
+      // Continue
     }
   }
 
@@ -309,7 +335,7 @@ async function enrichTracksWithRealAudio(tracks) {
 }
 
 /**
- * Intelligent AI analysis of user mood and STRICT language matching
+ * Intelligent AI analysis of user mood and STRICT language matching (including Konkani)
  */
 async function analyzeMoodAndRecommend(mood) {
   let baseData = null;
@@ -319,17 +345,17 @@ async function analyzeMoodAndRecommend(mood) {
       const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
       const prompt = `
 You are an expert music curator and AI DJ named AuraBeat.
-Analyze the following user mood, language, or scenario: "${mood}".
+Analyze the user mood or language query: "${mood}".
 
 CRITICAL LANGUAGE ENFORCEMENT RULES:
-1. If the user specifies or mentions ANY language or regional industry (e.g., "Kannada", "Sandalwood", "Hindi", "Bollywood", "English", "Punjabi", "Tamil", "Telugu", "Malayalam", "Spanish", "Korean/K-Pop", etc.):
-   - ALL 12 recommended songs MUST BE 100% STRICTLY in that language by real native artists from that industry.
-   - If "Kannada" is requested: ALL 12 songs MUST be Kannada songs (e.g. Singara Siriye, Ra Ra Rakkamma, Belakina Kavidhe, Tagaru, Karabuu, Dheera Dheera, Neene Modalu, Ondu Malebillu, Ninna Gungalli, Minchagi Neenu, Anisuthide). Zero English or Hindi songs!
-   - If "Hindi" or "Bollywood" is requested: ALL 12 songs MUST be Hindi/Bollywood songs (e.g. Arijit Singh, Pritam, Badshah, Shreya Ghoshal, Neha Kakkar, KK, Atif Aslam, Kishore Kumar, Sonu Nigam). Zero English or other songs!
-   - If "English" is requested: ALL 12 songs MUST be English songs (e.g. The Weeknd, Taylor Swift, Drake, Dua Lipa, Ed Sheeran, Coldplay, Post Malone, Billie Eilish). Zero Hindi or other songs!
-2. If no specific language is specified, match the natural style and vibe of the input prompt.
+1. If the user mentions ANY language or regional industry:
+   - "Konkani" / "Goan" / "Mangalorean": ALL 12 songs MUST be 100% Konkani songs (e.g. Lorna, Chris Perry, Remo Fernandes, Wilfy Rebimbus, Henry D'Souza, Prajoth D'Sa, Lawry Travasso, Alfred Rose).
+   - "Kannada" / "Sandalwood": ALL 12 songs MUST be 100% Kannada songs (e.g. Singara Siriye, Ra Ra Rakkamma, Belakina Kavidhe, Tagaru, Karabuu, Dheera Dheera, Neene Modalu, Ondu Malebillu, Minchagi Neenu, Anisuthide).
+   - "Hindi" / "Bollywood": ALL 12 songs MUST be 100% Hindi/Bollywood songs (e.g. Arijit Singh, Badshah, Shreya Ghoshal, Neha Kakkar, Pritam, Atif Aslam).
+   - "English": ALL 12 songs MUST be 100% English songs (e.g. The Weeknd, Dua Lipa, Harry Styles, Taylor Swift, Coldplay).
+2. If no language is specified, match the natural style and vibe of the input prompt.
 
-Respond with ONLY a raw JSON object (no markdown quotes, no code blocks):
+Respond with ONLY a raw JSON object:
 {
   "vibeTitle": "A creative title (3-6 words)",
   "vibeDescription": "A 1-2 sentence explanation.",
@@ -338,7 +364,7 @@ Respond with ONLY a raw JSON object (no markdown quotes, no code blocks):
   "energy": "Energy level with %",
   "colorTheme": ["#fromHexColor", "#toHexColor"],
   "spotifySearchQuery": "concise search query for Spotify",
-  "spotifyPlaylistCategory": "one of: chill, lofi, focus, happy, energetic, sad, party, sleep, retro, bollywood, kannada, punjabi, tamil, telugu, malayalam, acoustic",
+  "spotifyPlaylistCategory": "one of: chill, lofi, focus, happy, energetic, sad, party, sleep, retro, bollywood, kannada, konkani, punjabi, tamil, telugu, malayalam, acoustic",
   "tracks": [
     {
       "title": "Real Song Title",
@@ -374,8 +400,8 @@ Respond with ONLY a raw JSON object (no markdown quotes, no code blocks):
     vibeTitle,
     vibeDescription: baseData.vibeDescription || `Curated soundscape crafted for your ${mood} mood.`,
     emoji: baseData.emoji || '🎵✨',
-    genre: baseData.genre || 'Electronic / Acoustic',
-    energy: baseData.energy || '75% Vibrant',
+    genre: baseData.genre || 'Music Collection',
+    energy: baseData.energy || '80% Vibrant',
     colorTheme: Array.isArray(baseData.colorTheme) && baseData.colorTheme.length === 2 ? baseData.colorTheme : ['#6366f1', '#a855f7'],
     spotifySearchQuery,
     playlistEmbedId,
@@ -385,22 +411,30 @@ Respond with ONLY a raw JSON object (no markdown quotes, no code blocks):
 }
 
 /**
- * Fetch more songs for an existing mood with UNLIMITED catalog search & ZERO repeats
+ * Fetch INFINITE UNIQUE SONGS on "Load More" without running out at 40!
  */
 async function getMoreTracks(mood, existingTitles = []) {
   const normalizedExisting = new Set((existingTitles || []).map(t => normalizeTitle(t)));
   const lower = (mood || '').toLowerCase();
 
-  // 1. First attempt: AI generation
+  const isKonkani = lower.includes('konkani') || lower.includes('goa') || lower.includes('mangalore');
+  const isKannada = lower.includes('kannada') || lower.includes('sandalwood');
+  const isHindi = lower.includes('hindi') || lower.includes('bollywood') || lower.includes('desi');
+  const isEnglish = lower.includes('english') || lower.includes('pop') || lower.includes('western');
+
+  // 1. Dynamic AI expansion with diverse prompt seeding
   if (genAI) {
     try {
       const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-      const excludeStr = existingTitles.slice(-30).join(', ');
+      const excludeStr = existingTitles.slice(-40).join(', ');
+      const seedOffsets = ['undiscovered gem', 'chart-topping hit', 'classic anthem', 'viral sensation', 'dance floor banger', 'acoustic masterpiece'];
+      const randomSeed = seedOffsets[Math.floor(Math.random() * seedOffsets.length)];
+
       const prompt = `
-Given the mood: "${mood}".
-STRICT LANGUAGE REQUIREMENT: If the mood requests a specific language (e.g. Kannada, Hindi, English, etc.), ALL new songs MUST be 100% strictly in that language.
-Recommend 10 MORE unique, high-vibe real songs matching this mood and language.
-CRITICAL: Do NOT include ANY of these already listed songs: [${excludeStr}].
+Target Mood & Language: "${mood}".
+Requirement: Recommend 12 MORE unique, distinct, real songs matching "${mood}" with a focus on ${randomSeed}.
+If a regional language (Konkani, Kannada, Hindi, English) was requested, 100% of songs MUST be strictly in that language.
+CRITICAL: Do NOT repeat ANY of these songs: [${excludeStr}].
 
 Respond with ONLY a raw JSON object:
 {
@@ -423,7 +457,7 @@ Respond with ONLY a raw JSON object:
         if (uniqueFromAI.length > 0) {
           const enriched = await enrichTracksWithRealAudio(uniqueFromAI);
           const finalClean = enriched.filter(t => !isDuplicate(t.title, normalizedExisting));
-          if (finalClean.length > 0) return finalClean;
+          if (finalClean.length >= 4) return finalClean;
         }
       }
     } catch (err) {
@@ -431,52 +465,65 @@ Respond with ONLY a raw JSON object:
     }
   }
 
-  // 2. Second attempt: Live 100M+ music catalog search enriched with exact video IDs
+  // 2. Multi-query rotating live catalog search for unlimited song loading
   try {
-    let catalogQuery = mood;
+    const searchTerms = [];
     let country = 'IN';
-    if (lower.includes('kannada')) {
-      catalogQuery = 'Kannada Hits';
+
+    if (isKonkani) {
+      searchTerms.push('Konkani', 'Goan Konkani', 'Lorna Konkani', 'Wilfy Rebimbus', 'Mangalore Konkani', 'Remo Fernandes', 'Konkani Baila', 'Chris Perry');
       country = 'IN';
-    } else if (lower.includes('hindi') || lower.includes('bollywood')) {
-      catalogQuery = 'Bollywood Hindi Hits';
+    } else if (isKannada) {
+      searchTerms.push('Kannada Hits', 'Kannada Romantic', 'Sanjith Hegde', 'Vijay Prakash', 'Chandan Shetty', 'Kantara Songs', 'Sonu Nigam Kannada', 'Kannada Dance Hits');
       country = 'IN';
-    } else if (lower.includes('english')) {
-      catalogQuery = 'Top English Pop Hits';
+    } else if (isHindi) {
+      searchTerms.push('Bollywood Hits', 'Arijit Singh', 'Badshah Hits', 'Hindi Romantic Melodies', 'Hindi Dance Party', 'Pritam Hits', 'Shreya Ghoshal Hindi', 'Bollywood Dance 2024');
+      country = 'IN';
+    } else if (isEnglish) {
+      searchTerms.push('Pop Hits 2024', 'The Weeknd', 'Dua Lipa', 'Billboard Hot 100', 'Top Global Hits', 'Synthwave Hits', 'Dance Pop Hits', 'Ed Sheeran');
       country = 'US';
+    } else {
+      searchTerms.push(mood, `${mood} music`, `${mood} songs`, 'Top Trending Music');
+      country = 'IN';
     }
 
-    const liveTracks = await searchLiveMusicCatalog(catalogQuery, country, 25);
-    const uniqueLive = liveTracks.filter(t => !isDuplicate(t.title, normalizedExisting));
-    if (uniqueLive.length >= 5) {
+    // Pick 2 random rotating search queries from the term pool
+    const term1 = searchTerms[Math.floor(Math.random() * searchTerms.length)];
+    const term2 = searchTerms[Math.floor(Math.random() * searchTerms.length)];
+
+    const [batch1, batch2] = await Promise.all([
+      searchLiveMusicCatalog(term1, country, 30),
+      searchLiveMusicCatalog(term2, country, 30),
+    ]);
+
+    const combined = [...batch1, ...batch2];
+    const uniqueLive = combined.filter(t => !isDuplicate(t.title, normalizedExisting));
+
+    if (uniqueLive.length >= 3) {
       const enrichedLive = await enrichTracksWithRealAudio(uniqueLive.slice(0, 10));
       return enrichedLive.filter(t => !isDuplicate(t.title, normalizedExisting));
     }
   } catch (e) {
-    console.warn('Live catalog search error:', e.message);
+    console.warn('Catalog expansion notice:', e.message);
   }
 
-  // 3. Third attempt: Curated library pool
+  // 3. Curated Database pool fallback
   let pool = SONG_DATABASE.english;
-  if (lower.includes('kannada') || lower.includes('sandalwood')) {
-    pool = SONG_DATABASE.kannada;
-  } else if (lower.includes('hindi') || lower.includes('bollywood') || lower.includes('desi')) {
-    pool = SONG_DATABASE.hindi;
-  }
+  if (isKonkani) pool = SONG_DATABASE.konkani;
+  else if (isKannada) pool = SONG_DATABASE.kannada;
+  else if (isHindi) pool = SONG_DATABASE.hindi;
 
   const unplayed = pool.filter(s => !isDuplicate(s.title, normalizedExisting));
-  const chosen = unplayed.slice(0, 10);
-
-  if (chosen.length === 0) {
-    return [];
+  if (unplayed.length > 0) {
+    const enriched = await enrichTracksWithRealAudio(unplayed.slice(0, 10));
+    return enriched.filter(s => !isDuplicate(s.title, normalizedExisting));
   }
 
-  const enriched = await enrichTracksWithRealAudio(chosen);
-  return enriched.filter(s => !isDuplicate(s.title, normalizedExisting));
+  return [];
 }
 
 /**
- * Fallback recommendation generator
+ * Fallback recommendation generator with Konkani
  */
 function generateFallbackRecommendations(mood) {
   const lower = (mood || 'chill').toLowerCase();
@@ -486,8 +533,28 @@ function generateFallbackRecommendations(mood) {
   let genre = 'Chill & Ambient';
   let energy = '60% Relaxed';
 
+  const isKonkani = lower.includes('konkani') || lower.includes('goa') || lower.includes('mangalore');
   const isKannada = lower.includes('kannada') || lower.includes('sandalwood');
   const isHindi = lower.includes('hindi') || lower.includes('bollywood') || lower.includes('desi');
+
+  if (isKonkani) {
+    category = 'konkani';
+    colorTheme = ['#10b981', '#06b6d4'];
+    emoji = '🌴🌊';
+    genre = 'Konkani Hits';
+    energy = '85% Coastal Vibe';
+    return {
+      vibeTitle: `Konkani Coastal Classics`,
+      vibeDescription: `Pure 100% authentic Goan & Mangalorean Konkani songs for your ${mood} mood.`,
+      emoji,
+      genre,
+      energy,
+      colorTheme,
+      spotifySearchQuery: `Konkani ${mood} Songs`,
+      spotifyPlaylistCategory: category,
+      tracks: SONG_DATABASE.konkani.slice(0, 12),
+    };
+  }
 
   if (isKannada) {
     category = 'kannada';
