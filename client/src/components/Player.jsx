@@ -32,7 +32,10 @@ import {
   RotateCw,
   TrendingUp,
   Flame as FireIcon,
-  RotateCcw
+  RotateCcw,
+  Maximize2,
+  Minimize2,
+  Gauge
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -127,6 +130,13 @@ class AmbientSoundGenerator {
 
 const ambientSynth = new AmbientSoundGenerator();
 
+const SPEED_OPTIONS = [
+  { label: "0.85x", val: 0.85, name: "Slowed & Reverb 🌙" },
+  { label: "1.0x", val: 1.0, name: "Original Normal 🎵" },
+  { label: "1.25x", val: 1.25, name: "Workout Hype 🔥" },
+  { label: "1.5x", val: 1.5, name: "Speed Up ⚡" },
+];
+
 export default function Player({ playlist, onRefreshPlaylist }) {
   const { 
     mood,
@@ -152,7 +162,11 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // New Feature States
+  // New Professional Features
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [isCinemaMode, setIsCinemaMode] = useState(false);
+
+  // Liked Songs
   const [likedSongs, setLikedSongs] = useState(() => {
     try {
       const saved = localStorage.getItem("aurabeat_liked_songs");
@@ -163,19 +177,24 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   });
   const [showLikedOnly, setShowLikedOnly] = useState(false);
 
+  // Lyrics
   const [showLyrics, setShowLyrics] = useState(false);
   const [lyrics, setLyrics] = useState([]);
   const [loadingLyrics, setLoadingLyrics] = useState(false);
 
+  // AI DJ
   const [isAiDjActive, setIsAiDjActive] = useState(false);
   const [isDjSpeaking, setIsDjSpeaking] = useState(false);
 
+  // Ambience
   const [showAmbientModal, setShowAmbientModal] = useState(false);
   const [ambientVolumes, setAmbientVolumes] = useState({ rain: 0, waves: 0, fire: 0, coffee: 0 });
 
+  // Sleep Timer
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
   const [sleepTimerSecondsLeft, setSleepTimerSecondsLeft] = useState(0);
 
+  // Story Card
   const [showStoryModal, setShowStoryModal] = useState(false);
 
   const audioRef = useRef(null);
@@ -234,12 +253,10 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               } else if (event.data === window.YT.PlayerState.PAUSED) {
                 setIsPlaying(false);
               } else if (event.data === window.YT.PlayerState.ENDED) {
-                // Only advance track if actually finished near the end
                 handleNextTrack();
               }
             },
             onError: () => {
-              // Fallback to HTML5 audio if restriction occurs
               if (audioRef.current && activeTrack?.previewUrl) {
                 audioRef.current.src = activeTrack.previewUrl;
                 audioRef.current.play().catch(() => {});
@@ -254,7 +271,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   // High-accuracy time sync for full 3-5 minute song playback
   useEffect(() => {
     syncIntervalRef.current = setInterval(() => {
-      if (isDraggingScrubberRef.current) return; // Don't overwrite while user is dragging scrubber!
+      if (isDraggingScrubberRef.current) return;
 
       if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
         try {
@@ -273,6 +290,34 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     };
   }, []);
+
+  // Global Keyboard Shortcuts (Space, J, L, N, P, M, F)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore when user is typing in an input or textarea
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === 'j' || e.key === 'J' || e.code === 'ArrowLeft') {
+        handleSkipSeconds(-10);
+      } else if (e.key === 'l' || e.key === 'L' || e.code === 'ArrowRight') {
+        handleSkipSeconds(10);
+      } else if (e.key === 'n' || e.key === 'N') {
+        handleNextTrack();
+      } else if (e.key === 'p' || e.key === 'P') {
+        handlePrevTrack();
+      } else if (e.key === 'm' || e.key === 'M') {
+        toggleMute();
+      } else if (e.key === 'f' || e.key === 'F') {
+        setIsCinemaMode(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, currentTime, currentTrackIndex, isMuted]);
 
   useEffect(() => {
     setTracks(initialTracks);
@@ -395,7 +440,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       speakDjIntro(track);
     }
 
-    // Resolve YouTube Video ID for full 3-5 minute song if needed
     let videoId = track.youtubeVideoId || (track.candidateVideoIds && track.candidateVideoIds[0]);
 
     if (!videoId) {
@@ -417,7 +461,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       } catch (e) {}
     }
 
-    // Stop HTML5 audio before playing full track in YouTube audio engine
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = "";
@@ -427,6 +470,9 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       try {
         ytPlayerRef.current.loadVideoById(videoId);
         ytPlayerRef.current.playVideo();
+        if (playbackSpeed !== 1.0 && typeof ytPlayerRef.current.setPlaybackRate === 'function') {
+          ytPlayerRef.current.setPlaybackRate(playbackSpeed);
+        }
         setIsPlaying(true);
       } catch (e) {
         playHtml5Audio(track);
@@ -456,6 +502,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       audioRef.current.src = audioUrl;
       audioRef.current.currentTime = 0;
       audioRef.current.volume = isMuted ? 0 : volume;
+      audioRef.current.playbackRate = playbackSpeed;
       audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     }
   };
@@ -528,6 +575,21 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
     if (audioRef.current) {
       try { audioRef.current.currentTime = target; } catch (e) {}
+    }
+  };
+
+  // Speed change handler
+  const handleSpeedCycle = () => {
+    const currentIndex = SPEED_OPTIONS.findIndex(s => s.val === playbackSpeed);
+    const nextIndex = (currentIndex + 1) % SPEED_OPTIONS.length;
+    const nextSpeed = SPEED_OPTIONS[nextIndex].val;
+    setPlaybackSpeed(nextSpeed);
+
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.setPlaybackRate === 'function') {
+      try { ytPlayerRef.current.setPlaybackRate(nextSpeed); } catch (e) {}
+    }
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextSpeed;
     }
   };
 
@@ -662,6 +724,101 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         playsInline
       />
 
+      {/* Fullscreen Cinema Visualizer Mode */}
+      {isCinemaMode && activeTrack && (
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-between p-6 sm:p-12 text-white animate-in fade-in duration-300">
+          {/* Top Bar */}
+          <div className="w-full flex items-center justify-between z-20">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{emoji}</span>
+              <span className="text-sm font-extrabold uppercase tracking-widest text-emerald-400">
+                AuraBeat Cinema • {vibeTitle}
+              </span>
+            </div>
+            <button
+              onClick={() => setIsCinemaMode(false)}
+              className="p-3 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-2xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold"
+            >
+              <Minimize2 className="w-4 h-4" />
+              <span>Exit Cinema (Esc / F)</span>
+            </button>
+          </div>
+
+          {/* Center Giant Rotating Vinyl & Visualizer Glow */}
+          <div className="relative flex flex-col items-center justify-center my-auto text-center space-y-6">
+            <div 
+              className="absolute w-96 h-96 rounded-full blur-3xl opacity-30 pointer-events-none animate-pulse"
+              style={{ background: colorTheme[0] || "#10b981" }}
+            />
+
+            <div className={`relative w-64 h-64 sm:w-80 sm:h-80 rounded-full overflow-hidden shadow-2xl border-4 border-slate-700 bg-slate-900 transition-transform duration-700 ${isPlaying ? "scale-105 shadow-emerald-500/40 ring-4 ring-emerald-500/50" : ""}`}>
+              {activeTrack.artworkUrl ? (
+                <img 
+                  src={activeTrack.artworkUrl} 
+                  alt={activeTrack.title} 
+                  className={`w-full h-full object-cover transition-all duration-1000 ${isPlaying ? "scale-110 rotate-3" : ""}`} 
+                />
+              ) : (
+                <Disc3 className={`w-full h-full p-16 text-emerald-400 ${isPlaying ? "animate-spin" : ""}`} />
+              )}
+            </div>
+
+            <div className="space-y-1 max-w-lg">
+              <div className="flex items-center justify-center gap-2">
+                {activeTrack.streamCount && (
+                  <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-xs font-bold flex items-center gap-1">
+                    <FireIcon className="w-3 h-3 fill-amber-400" />
+                    {activeTrack.streamCount}
+                  </span>
+                )}
+                <span className="text-xs text-emerald-400 font-mono font-bold">• 100% Ad-Free Master Stream</span>
+              </div>
+              <h2 className="text-2xl sm:text-4xl font-extrabold text-white">{activeTrack.title}</h2>
+              <p className="text-base sm:text-lg text-slate-300 font-medium">{activeTrack.artist}</p>
+            </div>
+          </div>
+
+          {/* Bottom Cinema Controls */}
+          <div className="w-full max-w-2xl space-y-4">
+            {/* Scrubber */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
+                <span className="text-emerald-400 font-bold">{formatTime(currentTime)}</span>
+                <span>{formatTime(duration || 210)}</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max={duration || 210}
+                step="0.5"
+                value={currentTime}
+                onChange={handleSeek}
+                className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+            </div>
+
+            {/* Playback Buttons */}
+            <div className="flex items-center justify-center gap-6">
+              <button onClick={handlePrevTrack} className="p-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl border border-slate-700">
+                <SkipBack className="w-6 h-6" />
+              </button>
+              <button onClick={() => handleSkipSeconds(-10)} className="p-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-2xl border border-slate-700 text-xs font-bold flex items-center gap-1">
+                <RotateCcw className="w-4 h-4" /> -10s
+              </button>
+              <button onClick={togglePlay} className="p-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-3xl shadow-xl font-bold">
+                {isPlaying ? <Pause className="w-8 h-8 fill-current" /> : <Play className="w-8 h-8 fill-current ml-1" />}
+              </button>
+              <button onClick={() => handleSkipSeconds(10)} className="p-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-2xl border border-slate-700 text-xs font-bold flex items-center gap-1">
+                +10s <RotateCw className="w-4 h-4" />
+              </button>
+              <button onClick={handleNextTrack} className="p-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl border border-slate-700">
+                <SkipForward className="w-6 h-6" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Playlist Hero Banner */}
       <div 
         style={gradientStyle}
@@ -699,6 +856,16 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end">
+            {/* Cinema Mode Button */}
+            <button
+              onClick={() => setIsCinemaMode(true)}
+              className="p-2 sm:p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold"
+              title="Fullscreen Cinema Mode"
+            >
+              <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Cinema</span>
+            </button>
+
             {/* Refresh All Songs Button */}
             <button
               onClick={handleRefreshAll}
@@ -774,6 +941,16 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Speed / Vibe Selector */}
+            <button
+              onClick={handleSpeedCycle}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl border border-slate-700 flex items-center gap-1 font-bold transition-all"
+              title="Playback Speed / Vibe"
+            >
+              <Gauge className="w-3.5 h-3.5" />
+              <span>{playbackSpeed}x</span>
+            </button>
+
             {/* Ambient Soundscape Button */}
             <button
               onClick={() => setShowAmbientModal(true)}
@@ -948,7 +1125,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                     onClick={handlePrevTrack}
                     disabled={currentTrackIndex === 0}
                     className="p-2.5 sm:p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white disabled:opacity-30 rounded-2xl transition-all active:scale-95 border border-slate-700"
-                    title="Previous Song"
+                    title="Previous Song (P)"
                   >
                     <SkipBack className="w-5 h-5" />
                   </button>
@@ -957,7 +1134,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                   <button
                     onClick={togglePlay}
                     className="p-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl shadow-xl shadow-emerald-500/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center font-bold"
-                    title={isPlaying ? "Pause Song" : "Play Full Song"}
+                    title={isPlaying ? "Pause Song (Space)" : "Play Full Song (Space)"}
                   >
                     {isPlaying ? (
                       <Pause className="w-6 h-6 fill-current" />
@@ -970,7 +1147,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                   <button
                     onClick={handleNextTrack}
                     className="p-2.5 sm:p-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-2xl transition-all active:scale-95 border border-slate-700"
-                    title="Next Song"
+                    title="Next Song (N)"
                   >
                     <SkipForward className="w-5 h-5" />
                   </button>
@@ -1217,7 +1394,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 <p className="text-xs text-slate-300 truncate mt-0.5">{activeTrack.artist}</p>
               </div>
               <div className="pt-2 border-t border-slate-800 text-[11px] text-emerald-300 font-mono font-bold">
-                🎧 Listening on AuraBeat
+                🎧 Listening on AuraBeat • 100% Ad-Free
               </div>
             </div>
 

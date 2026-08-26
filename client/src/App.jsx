@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import MoodInput from "./components/MoodInput.jsx";
 import Player from "./components/Player.jsx";
-import { Headphones, Sparkles, History, AlertCircle, RefreshCw, Smartphone, QrCode, X, Copy, Check } from "lucide-react";
+import { Headphones, Sparkles, History, AlertCircle, RefreshCw, Smartphone, QrCode, X, Copy, Check, ShieldCheck } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
 const HISTORY_KEY = "aurabeat_mood_history";
@@ -133,30 +133,38 @@ export default function App() {
 
       {/* Top Navbar / Header */}
       <div className="w-full max-w-4xl flex items-center justify-between z-20 pb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-md">
-            <Headphones className="w-5 h-5" />
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20">
+            <Headphones className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <span className="text-lg sm:text-xl font-extrabold text-white">AuraBeat</span>
+          <div>
+            <span className="text-lg sm:text-xl font-extrabold text-white tracking-tight">AuraBeat</span>
+            <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-semibold">
+              <ShieldCheck className="w-3 h-3" />
+              <span>100% Ad-Free • HD Audio</span>
+            </div>
+          </div>
         </div>
 
-        {/* Open on Mobile Trigger */}
-        <button
-          onClick={() => setShowMobileModal(true)}
-          className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-xs font-semibold text-emerald-400 flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
-        >
-          <QrCode className="w-4 h-4" />
-          <span>Open on Phone</span>
-        </button>
+        {/* Top Right Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowMobileModal(true)}
+            className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-xs font-semibold text-emerald-400 flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+          >
+            <QrCode className="w-4 h-4" />
+            <span>Open on Phone</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Content Container */}
       <main className="w-full max-w-4xl z-10 flex flex-col items-center space-y-6 my-auto py-2">
         {/* Header Hero */}
         <header className="text-center space-y-2.5">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-emerald-400 text-xs font-medium">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-emerald-400 text-xs font-medium shadow-inner">
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>AI DJ Powered by Gemini & Spotify</span>
+            <span>AI DJ Powered by Gemini & Full-Length Studio Streaming</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
@@ -164,7 +172,7 @@ export default function App() {
           </h1>
 
           <p className="text-slate-400 text-xs sm:text-sm max-w-md mx-auto">
-            Speak or type your current feeling — get instant original song recommendations.
+            Speak or type your current feeling — get instant full-length original songs & playlists.
           </p>
         </header>
 
@@ -199,7 +207,7 @@ export default function App() {
             <div className="w-14 h-14 rounded-full border-4 border-emerald-500/20 border-t-emerald-400 animate-spin" />
             <div className="text-center space-y-1">
               <h3 className="text-base sm:text-lg font-bold text-white">Curating your playlist with Gemini AI…</h3>
-              <p className="text-xs text-slate-400">Finding real original tracks and artwork...</p>
+              <p className="text-xs text-slate-400">Finding real original tracks, artwork, and full-length master streams...</p>
             </div>
           </div>
         )}
@@ -225,13 +233,13 @@ export default function App() {
 
         {/* Player Component */}
         {playlist && !loading && (
-          <Player playlist={playlist} />
+          <Player playlist={playlist} onRefreshPlaylist={handleMoodSubmit} />
         )}
       </main>
 
       {/* Footer */}
       <footer className="w-full max-w-4xl text-center py-5 text-[11px] text-slate-400 border-t border-slate-900 mt-8 z-10">
-        <p>AuraBeat — AI Mood Music Player • Designed for Desktop & Mobile Web</p>
+        <p>AuraBeat — AI Mood Music Player • 100% Free & Ad-Free • Designed for Desktop & Mobile Web</p>
       </footer>
     </div>
   );
