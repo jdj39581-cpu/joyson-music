@@ -143,14 +143,13 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(30);
+  const [duration, setDuration] = useState(210); // default to ~3.5 min full song
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
   const [isRepeat, setIsRepeat] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
 
   // New Feature States
   const [likedSongs, setLikedSongs] = useState(() => {
@@ -179,18 +178,109 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [showStoryModal, setShowStoryModal] = useState(false);
 
   const audioRef = useRef(null);
+  const ytPlayerRef = useRef(null);
   const playerSectionRef = useRef(null);
   const sleepTimerRef = useRef(null);
+  const syncIntervalRef = useRef(null);
+
+  // Load YouTube IFrame API for Full Length 3-5 Minute Songs
+  useEffect(() => {
+    if (!window.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+      window.onYouTubeIframeAPIReady = () => {
+        initYtPlayer();
+      };
+    } else {
+      initYtPlayer();
+    }
+
+    return () => {
+      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+    };
+  }, []);
+
+  const initYtPlayer = () => {
+    if (window.YT && window.YT.Player && !ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current = new window.YT.Player('full-song-audio-engine', {
+          height: '1',
+          width: '1',
+          playerVars: {
+            autoplay: 0,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            playsinline: 1,
+            rel: 0,
+          },
+          events: {
+            onReady: (e) => {
+              e.target.setVolume(volume * 100);
+            },
+            onStateChange: (event) => {
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                setIsPlaying(true);
+                const fullDuration = ytPlayerRef.current?.getDuration();
+                if (fullDuration && fullDuration > 30) {
+                  setDuration(fullDuration);
+                }
+              } else if (event.data === window.YT.PlayerState.PAUSED) {
+                setIsPlaying(false);
+              } else if (event.data === window.YT.PlayerState.ENDED) {
+                handleNextTrack();
+              }
+            },
+            onError: () => {
+              // Fallback to HTML5 audio if YouTube restriction occurs
+              if (audioRef.current && activeTrack?.previewUrl) {
+                audioRef.current.src = activeTrack.previewUrl;
+                audioRef.current.play().catch(() => {});
+              }
+            }
+          }
+        });
+      } catch (e) {}
+    }
+  };
+
+  // High-accuracy time sync for full 3-5 minute song playback
+  useEffect(() => {
+    syncIntervalRef.current = setInterval(() => {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+        try {
+          const state = ytPlayerRef.current.getPlayerState();
+          if (state === 1) { // PLAYING
+            const time = ytPlayerRef.current.getCurrentTime();
+            setCurrentTime(time);
+            const fullDur = ytPlayerRef.current.getDuration();
+            if (fullDur && fullDur > 10) setDuration(fullDur);
+          }
+        } catch (e) {}
+      }
+    }, 500);
+
+    return () => {
+      if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setTracks(initialTracks);
     setCurrentTrackIndex(0);
     setIsPlaying(false);
     setCurrentTime(0);
-    setDuration(30);
+    setDuration(210);
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = "";
+    }
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.stopVideo === 'function') {
+      try { ytPlayerRef.current.stopVideo(); } catch (e) {}
     }
   }, [playlist, initialTracks]);
 
@@ -222,10 +312,10 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     window.speechSynthesis.cancel();
 
     const intros = [
-      `Up next on Joyson Music, here's ${track.title} by ${track.artist}! Top streamed blockbuster.`,
-      `You're tuned into AuraBeat. Let's vibe with ${track.title}!`,
-      `Here comes the #1 most listened hit for your vibe, ${track.title} by ${track.artist}. Enjoy!`,
-      `Spinning next, ${track.title}. Let the music take over!`
+      `Up next on Joyson Music, here's the full track of ${track.title} by ${track.artist}! Top blockbuster hit.`,
+      `You're tuned into AuraBeat. Let's vibe with full-length ${track.title}!`,
+      `Here comes the #1 most listened song for your mood, ${track.title} by ${track.artist}. Enjoy!`,
+      `Spinning full track, ${track.title}. Let the music take over!`
     ];
     const text = intros[Math.floor(Math.random() * intros.length)];
     const utterance = new SpeechSynthesisUtterance(text);
@@ -265,6 +355,9 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           if (prev <= 1) {
             clearInterval(sleepTimerRef.current);
             if (audioRef.current) audioRef.current.pause();
+            if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
+              try { ytPlayerRef.current.pauseVideo(); } catch (e) {}
+            }
             setIsPlaying(false);
             setSleepTimerMinutes(0);
             ambientSynth.stopAll();
@@ -283,7 +376,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     };
   }, [sleepTimerMinutes]);
 
-  // Play Track Function
+  // Play Full Song Function
   const playTrackAtIndex = async (index) => {
     const list = showLikedOnly ? likedSongs : tracks;
     if (index < 0 || index >= list.length) return;
@@ -292,57 +385,45 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
     setCurrentTrackIndex(index);
     setCurrentTime(0);
-    setIsLoadingAudio(true);
 
     if (isAiDjActive) {
       speakDjIntro(track);
     }
 
-    let audioUrl = track.previewUrl;
+    // Resolve YouTube Video ID for full 3-5 minute song if needed
+    let videoId = track.youtubeVideoId || (track.candidateVideoIds && track.candidateVideoIds[0]);
 
-    if (!audioUrl) {
+    if (!videoId) {
       try {
-        const res = await fetch(`/api/track-audio?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
+        const res = await fetch(`/api/candidate-videos?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.previewUrl) {
-            audioUrl = data.previewUrl;
+          if (data.videoId) {
+            videoId = data.videoId;
             setTracks(prev => {
               const copy = [...prev];
               if (copy[index]) {
-                copy[index] = {
-                  ...copy[index],
-                  previewUrl: data.previewUrl,
-                  artworkUrl: data.artworkUrl || copy[index].artworkUrl,
-                  duration: data.duration || copy[index].duration,
-                };
+                copy[index] = { ...copy[index], youtubeVideoId: data.videoId, candidateVideoIds: data.videoIds };
               }
               return copy;
             });
           }
         }
-      } catch (e) {
-        console.warn("Audio fetch notice:", e);
-      }
+      } catch (e) {}
     }
 
-    if (audioRef.current && audioUrl) {
-      audioRef.current.src = audioUrl;
-      audioRef.current.currentTime = 0;
-      audioRef.current.volume = isMuted ? 0 : volume;
-      audioRef.current
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          setIsLoadingAudio(false);
-        })
-        .catch(err => {
-          console.warn("Play error:", err);
-          setIsPlaying(false);
-          setIsLoadingAudio(false);
-        });
+    // Play full length audio via YouTube Audio engine
+    if (videoId && ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === 'function') {
+      try {
+        ytPlayerRef.current.loadVideoById(videoId);
+        ytPlayerRef.current.playVideo();
+        setIsPlaying(true);
+      } catch (e) {
+        // Fallback to HTML5 audio
+        playHtml5Audio(track);
+      }
     } else {
-      setIsLoadingAudio(false);
+      playHtml5Audio(track);
     }
 
     if (playerSectionRef.current) {
@@ -350,32 +431,54 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
-  const togglePlay = () => {
-    if (!audioRef.current) return;
+  const playHtml5Audio = async (track) => {
+    let audioUrl = track.previewUrl;
+    if (!audioUrl) {
+      try {
+        const res = await fetch(`/api/track-audio?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
+        if (res.ok) {
+          const data = await res.json();
+          audioUrl = data.previewUrl;
+        }
+      } catch (e) {}
+    }
 
+    if (audioRef.current && audioUrl) {
+      audioRef.current.src = audioUrl;
+      audioRef.current.currentTime = 0;
+      audioRef.current.volume = isMuted ? 0 : volume;
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    }
+  };
+
+  const togglePlay = () => {
     if (isPlaying) {
-      audioRef.current.pause();
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
+        try { ytPlayerRef.current.pauseVideo(); } catch (e) {}
+      }
+      if (audioRef.current) audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      if (!audioRef.current.src && activeTrack?.previewUrl) {
-        audioRef.current.src = activeTrack.previewUrl;
-      }
-      audioRef.current
-        .play()
-        .then(() => {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.playVideo === 'function') {
+        try { 
+          ytPlayerRef.current.playVideo(); 
           setIsPlaying(true);
-        })
-        .catch(() => {
+        } catch (e) {
           playTrackAtIndex(currentTrackIndex);
-        });
+        }
+      } else {
+        playTrackAtIndex(currentTrackIndex);
+      }
     }
   };
 
   const handleNextTrack = () => {
     const list = showLikedOnly ? likedSongs : tracks;
-    if (isRepeat && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
+    if (isRepeat) {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+        ytPlayerRef.current.seekTo(0);
+        ytPlayerRef.current.playVideo();
+      }
       return;
     }
     if (currentTrackIndex < list.length - 1) {
@@ -391,18 +494,12 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
-  const handleTimeUpdate = () => {
-    if (audioRef.current) {
-      setCurrentTime(audioRef.current.currentTime || 0);
-      if (audioRef.current.duration && !isNaN(audioRef.current.duration) && audioRef.current.duration > 0) {
-        setDuration(audioRef.current.duration);
-      }
-    }
-  };
-
   const handleSeek = (e) => {
     const time = parseFloat(e.target.value);
     setCurrentTime(time);
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+      try { ytPlayerRef.current.seekTo(time, true); } catch (e) {}
+    }
     if (audioRef.current) {
       audioRef.current.currentTime = time;
     }
@@ -411,6 +508,9 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const handleVolumeChange = (e) => {
     const val = parseFloat(e.target.value);
     setVolume(val);
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
+      try { ytPlayerRef.current.setVolume(val * 100); } catch (e) {}
+    }
     if (audioRef.current) {
       audioRef.current.volume = val;
     }
@@ -418,12 +518,17 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   };
 
   const toggleMute = () => {
-    if (!audioRef.current) return;
     if (isMuted) {
-      audioRef.current.volume = volume || 0.85;
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.unMute === 'function') {
+        try { ytPlayerRef.current.unMute(); ytPlayerRef.current.setVolume(volume * 100); } catch (e) {}
+      }
+      if (audioRef.current) audioRef.current.volume = volume || 0.85;
       setIsMuted(false);
     } else {
-      audioRef.current.volume = 0;
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.mute === 'function') {
+        try { ytPlayerRef.current.mute(); } catch (e) {}
+      }
+      if (audioRef.current) audioRef.current.volume = 0;
       setIsMuted(true);
     }
   };
@@ -509,18 +614,27 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
   return (
     <div className="w-full space-y-4 sm:space-y-6">
-      {/* High-Performance Master Audio Engine */}
+      {/* Invisible Full Song Audio Engine (Zero Video UI, Pure Audio) */}
+      <div 
+        style={{ 
+          position: 'fixed', 
+          bottom: 0, 
+          right: 0, 
+          width: '1px', 
+          height: '1px', 
+          opacity: 0.001, 
+          pointerEvents: 'none', 
+          zIndex: -9999 
+        }}
+      >
+        <div id="full-song-audio-engine" />
+      </div>
+
       <audio
         ref={audioRef}
         preload="auto"
         playsInline
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleTimeUpdate}
         onEnded={handleNextTrack}
-        onError={() => {
-          setIsPlaying(false);
-          setIsLoadingAudio(false);
-        }}
       />
 
       {/* Playlist Hero Banner */}
@@ -534,7 +648,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               <span className="text-2xl sm:text-3xl">{emoji}</span>
               <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1">
                 <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                Spotify Top Mix
+                Spotify Top Mix • Full Songs
               </span>
               {energy && (
                 <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-[11px] sm:text-xs font-semibold flex items-center gap-1">
@@ -712,7 +826,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 <div>
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-bold uppercase tracking-wider">
-                      Now Playing
+                      Now Playing • Full Song
                     </span>
                     {activeTrack.streamCount && (
                       <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[10px] font-bold flex items-center gap-1">
@@ -759,17 +873,17 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 </button>
               </div>
 
-              {/* Interactive Timeline Scrubber */}
+              {/* Interactive Timeline Scrubber (Full 3-5 min timeline) */}
               <div className="space-y-1.5 w-full">
                 <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
                   <span className="text-emerald-400 font-bold">{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration || 30)}</span>
+                  <span>{formatTime(duration || 210)}</span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max={duration || 30}
-                  step="0.1"
+                  max={duration || 210}
+                  step="0.5"
                   value={currentTime}
                   onChange={handleSeek}
                   className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 transition-all hover:h-2.5"
@@ -793,7 +907,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                   <button
                     onClick={togglePlay}
                     className="p-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl shadow-xl shadow-emerald-500/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center font-bold"
-                    title={isPlaying ? "Pause Song" : "Play Song"}
+                    title={isPlaying ? "Pause Song" : "Play Full Song"}
                   >
                     {isPlaying ? (
                       <Pause className="w-6 h-6 fill-current" />
@@ -1078,7 +1192,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             <h3 className="text-sm sm:text-base font-bold text-white">
-              {showLikedOnly ? "Liked Songs" : "Top Most Listened Tracks"} ({displayedList.length})
+              {showLikedOnly ? "Liked Songs" : "Top Most Listened Tracks (Full Length)"} ({displayedList.length})
             </h3>
           </div>
           
@@ -1203,7 +1317,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                           ? "bg-emerald-500 text-slate-950 shadow"
                           : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
                       }`}
-                      title="Play Audio"
+                      title="Play Full Song"
                     >
                       {isThisSelected && isPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
                       <span>{isThisSelected && isPlaying ? "Playing" : "Play"}</span>
