@@ -31,7 +31,8 @@ import {
   Coffee,
   RotateCw,
   TrendingUp,
-  Flame as FireIcon
+  Flame as FireIcon,
+  RotateCcw
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -143,7 +144,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(210); // default to ~3.5 min full song
+  const [duration, setDuration] = useState(210); // default ~3.5 min full track
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
   const [isRepeat, setIsRepeat] = useState(false);
@@ -182,6 +183,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const playerSectionRef = useRef(null);
   const sleepTimerRef = useRef(null);
   const syncIntervalRef = useRef(null);
+  const isDraggingScrubberRef = useRef(false);
 
   // Load YouTube IFrame API for Full Length 3-5 Minute Songs
   useEffect(() => {
@@ -226,17 +228,18 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               if (event.data === window.YT.PlayerState.PLAYING) {
                 setIsPlaying(true);
                 const fullDuration = ytPlayerRef.current?.getDuration();
-                if (fullDuration && fullDuration > 30) {
+                if (fullDuration && fullDuration > 15) {
                   setDuration(fullDuration);
                 }
               } else if (event.data === window.YT.PlayerState.PAUSED) {
                 setIsPlaying(false);
               } else if (event.data === window.YT.PlayerState.ENDED) {
+                // Only advance track if actually finished near the end
                 handleNextTrack();
               }
             },
             onError: () => {
-              // Fallback to HTML5 audio if YouTube restriction occurs
+              // Fallback to HTML5 audio if restriction occurs
               if (audioRef.current && activeTrack?.previewUrl) {
                 audioRef.current.src = activeTrack.previewUrl;
                 audioRef.current.play().catch(() => {});
@@ -251,6 +254,8 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   // High-accuracy time sync for full 3-5 minute song playback
   useEffect(() => {
     syncIntervalRef.current = setInterval(() => {
+      if (isDraggingScrubberRef.current) return; // Don't overwrite while user is dragging scrubber!
+
       if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
         try {
           const state = ytPlayerRef.current.getPlayerState();
@@ -262,7 +267,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           }
         } catch (e) {}
       }
-    }, 500);
+    }, 400);
 
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
@@ -412,14 +417,18 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       } catch (e) {}
     }
 
-    // Play full length audio via YouTube Audio engine
+    // Stop HTML5 audio before playing full track in YouTube audio engine
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+    }
+
     if (videoId && ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === 'function') {
       try {
         ytPlayerRef.current.loadVideoById(videoId);
         ytPlayerRef.current.playVideo();
         setIsPlaying(true);
       } catch (e) {
-        // Fallback to HTML5 audio
         playHtml5Audio(track);
       }
     } else {
@@ -494,14 +503,31 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
+  // Precise Seek inside CURRENT song (No skipping to other songs!)
   const handleSeek = (e) => {
     const time = parseFloat(e.target.value);
     setCurrentTime(time);
     if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
-      try { ytPlayerRef.current.seekTo(time, true); } catch (e) {}
+      try { 
+        ytPlayerRef.current.seekTo(time, true); 
+      } catch (e) {}
     }
     if (audioRef.current) {
-      audioRef.current.currentTime = time;
+      try { audioRef.current.currentTime = time; } catch (e) {}
+    }
+  };
+
+  // Quick 10s Forward / Rewind inside the same song
+  const handleSkipSeconds = (delta) => {
+    const target = Math.max(0, Math.min((duration || 210) - 1, currentTime + delta));
+    setCurrentTime(target);
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+      try { 
+        ytPlayerRef.current.seekTo(target, true); 
+      } catch (e) {}
+    }
+    if (audioRef.current) {
+      try { audioRef.current.currentTime = target; } catch (e) {}
     }
   };
 
@@ -634,7 +660,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         ref={audioRef}
         preload="auto"
         playsInline
-        onEnded={handleNextTrack}
       />
 
       {/* Playlist Hero Banner */}
@@ -873,11 +898,32 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 </button>
               </div>
 
-              {/* Interactive Timeline Scrubber (Full 3-5 min timeline) */}
+              {/* Interactive Timeline Scrubber with Skip 10s Buttons */}
               <div className="space-y-1.5 w-full">
                 <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
-                  <span className="text-emerald-400 font-bold">{formatTime(currentTime)}</span>
-                  <span>{formatTime(duration || 210)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-400 font-bold">{formatTime(currentTime)}</span>
+                    {/* -10s Rewind Button */}
+                    <button 
+                      onClick={() => handleSkipSeconds(-10)}
+                      className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded border border-slate-700 text-[10px] flex items-center gap-0.5 font-bold transition-all active:scale-90"
+                      title="Rewind 10 seconds"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" /> -10s
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* +10s Forward Button */}
+                    <button 
+                      onClick={() => handleSkipSeconds(10)}
+                      className="px-1.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded border border-slate-700 text-[10px] flex items-center gap-0.5 font-bold transition-all active:scale-90"
+                      title="Forward 10 seconds"
+                    >
+                      +10s <RotateCw className="w-2.5 h-2.5" />
+                    </button>
+                    <span>{formatTime(duration || 210)}</span>
+                  </div>
                 </div>
                 <input
                   type="range"
@@ -885,6 +931,10 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                   max={duration || 210}
                   step="0.5"
                   value={currentTime}
+                  onMouseDown={() => { isDraggingScrubberRef.current = true; }}
+                  onTouchStart={() => { isDraggingScrubberRef.current = true; }}
+                  onMouseUp={() => { isDraggingScrubberRef.current = false; }}
+                  onTouchEnd={() => { isDraggingScrubberRef.current = false; }}
                   onChange={handleSeek}
                   className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 transition-all hover:h-2.5"
                 />
