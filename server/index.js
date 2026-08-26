@@ -5,7 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const os = require('os');
 const path = require('path');
-const { analyzeMoodAndRecommend, getMoreTracks, getCandidateVideoIds, fetchRealTrackAudio } = require('./moodService');
+const { analyzeMoodAndRecommend, getMoreTracks, getCandidateVideoIds, fetchRealTrackAudio, fetchTrackLyrics } = require('./moodService');
 const { getAccessToken } = require('./spotify');
 
 const app = express();
@@ -48,6 +48,19 @@ app.get('/api/track-audio', async (req, res) => {
     res.json(audioData);
   } catch (err) {
     res.status(500).json({ error: 'Could not fetch track audio' });
+  }
+});
+
+// Endpoint to resolve synchronized karaoke lyrics
+app.get('/api/lyrics', async (req, res) => {
+  const { title, artist } = req.query;
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+
+  try {
+    const lyrics = await fetchTrackLyrics(title, artist || '');
+    res.json({ lyrics });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not fetch lyrics' });
   }
 });
 

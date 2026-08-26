@@ -17,7 +17,18 @@ import {
   SkipBack, 
   Volume2, 
   VolumeX, 
-  Repeat 
+  Repeat,
+  Heart,
+  Mic2,
+  RadioTower,
+  CloudRain,
+  Timer,
+  Sliders,
+  Camera,
+  X,
+  Waves,
+  Flame,
+  Coffee
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -37,16 +48,80 @@ function YouTubeIcon({ className = "w-4 h-4" }) {
   );
 }
 
-function parseDurationToSeconds(durationStr) {
-  if (!durationStr) return 210;
-  const parts = durationStr.split(":");
-  if (parts.length === 2) {
-    const mins = parseInt(parts[0], 10) || 0;
-    const secs = parseInt(parts[1], 10) || 0;
-    return mins * 60 + secs;
+// Web Audio API Ambient Sound Synthesizer (Rain, Ocean, Campfire, Coffee Shop)
+class AmbientSoundGenerator {
+  constructor() {
+    this.ctx = null;
+    this.nodes = {};
   }
-  return 210;
+
+  init() {
+    if (!this.ctx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioContext();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  setSound(type, volume) {
+    this.init();
+    if (!this.nodes[type]) {
+      if (volume <= 0) return;
+      const bufferSize = 2 * this.ctx.sampleRate;
+      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+
+      const whiteNoise = this.ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      const filter = this.ctx.createBiquadFilter();
+      if (type === 'rain') {
+        filter.type = 'lowpass';
+        filter.frequency.value = 800;
+      } else if (type === 'waves') {
+        filter.type = 'bandpass';
+        filter.frequency.value = 400;
+        filter.Q.value = 1.0;
+      } else if (type === 'fire') {
+        filter.type = 'highpass';
+        filter.frequency.value = 1200;
+      } else {
+        filter.type = 'lowpass';
+        filter.frequency.value = 1500;
+      }
+
+      const gainNode = this.ctx.createGain();
+      gainNode.gain.value = volume * 0.15;
+
+      whiteNoise.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(this.ctx.destination);
+      whiteNoise.start(0);
+
+      this.nodes[type] = { source: whiteNoise, gain: gainNode };
+    } else {
+      this.nodes[type].gain.gain.setValueAtTime(volume * 0.15, this.ctx.currentTime);
+    }
+  }
+
+  stopAll() {
+    Object.keys(this.nodes).forEach(key => {
+      try {
+        this.nodes[key].source.stop();
+        this.nodes[key].source.disconnect();
+      } catch (e) {}
+    });
+    this.nodes = {};
+  }
 }
+
+const ambientSynth = new AmbientSoundGenerator();
 
 export default function Player({ playlist }) {
   const { 
@@ -65,191 +140,206 @@ export default function Player({ playlist }) {
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(210);
+  const [duration, setDuration] = useState(30);
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
   const [isRepeat, setIsRepeat] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [isBuffering, setIsBuffering] = useState(false);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
 
-  const ytPlayerRef = useRef(null);
-  const ytDeckRef = useRef(null);
-  const progressIntervalRef = useRef(null);
+  // New Feature States
+  const [likedSongs, setLikedSongs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("aurabeat_liked_songs");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [showLikedOnly, setShowLikedOnly] = useState(false);
+
+  const [showLyrics, setShowLyrics] = useState(false);
+  const [lyrics, setLyrics] = useState([]);
+  const [loadingLyrics, setLoadingLyrics] = useState(false);
+
+  const [isAiDjActive, setIsAiDjActive] = useState(false);
+  const [isDjSpeaking, setIsDjSpeaking] = useState(false);
+
+  const [showAmbientModal, setShowAmbientModal] = useState(false);
+  const [ambientVolumes, setAmbientVolumes] = useState({ rain: 0, waves: 0, fire: 0, coffee: 0 });
+
+  const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
+  const [sleepTimerSecondsLeft, setSleepTimerSecondsLeft] = useState(0);
+
+  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [bassBoost, setBassBoost] = useState(false);
+
+  const audioRef = useRef(null);
   const playerSectionRef = useRef(null);
-  const isRepeatRef = useRef(false);
-  const currentVideoIdRef = useRef(null);
-
-  useEffect(() => {
-    isRepeatRef.current = isRepeat;
-  }, [isRepeat]);
+  const sleepTimerRef = useRef(null);
 
   useEffect(() => {
     setTracks(initialTracks);
     setCurrentTrackIndex(0);
     setIsPlaying(false);
     setCurrentTime(0);
-    const initialDur = parseDurationToSeconds(initialTracks[0]?.duration);
-    setDuration(initialDur);
+    setDuration(30);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+    }
   }, [playlist, initialTracks]);
 
-  const activeTrack = tracks[currentTrackIndex] || tracks[0] || null;
+  const activeTrack = (showLikedOnly ? likedSongs[currentTrackIndex] : tracks[currentTrackIndex]) || tracks[0] || null;
 
-  // Load YouTube Iframe API once
+  // Save liked songs to localStorage
+  const toggleLike = (track) => {
+    if (!track) return;
+    setLikedSongs(prev => {
+      const exists = prev.some(t => t.title.toLowerCase() === track.title.toLowerCase());
+      let updated;
+      if (exists) {
+        updated = prev.filter(t => t.title.toLowerCase() !== track.title.toLowerCase());
+      } else {
+        updated = [...prev, track];
+      }
+      try {
+        localStorage.setItem("aurabeat_liked_songs", JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  };
+
+  const isCurrentLiked = activeTrack ? likedSongs.some(t => t.title.toLowerCase() === activeTrack.title.toLowerCase()) : false;
+
+  // AI Voice DJ Announcer
+  const speakDjIntro = (track) => {
+    if (!isAiDjActive || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+
+    const intros = [
+      `Up next on Joyson Music, here's ${track.title} by ${track.artist}! Feel the rhythm.`,
+      `You're tuned into AuraBeat. Let's vibe with ${track.title}!`,
+      `Here comes a favorite for your mood, ${track.title} by ${track.artist}. Enjoy!`,
+      `Spinning next, ${track.title}. Let the music take over!`
+    ];
+    const text = intros[Math.floor(Math.random() * intros.length)];
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.05;
+    utterance.pitch = 1.0;
+
+    setIsDjSpeaking(true);
+    utterance.onend = () => setIsDjSpeaking(false);
+    utterance.onerror = () => setIsDjSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Fetch Live Synchronized Karaoke Lyrics
   useEffect(() => {
-    if (!window.YT) {
-      const tag = document.createElement("script");
-      tag.src = "https://www.youtube.com/iframe_api";
-      const firstScriptTag = document.getElementsByTagName("script")[0];
-      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    if (showLyrics && activeTrack) {
+      setLoadingLyrics(true);
+      fetch(`/api/lyrics?title=${encodeURIComponent(activeTrack.title)}&artist=${encodeURIComponent(activeTrack.artist)}`)
+        .then(res => res.json())
+        .then(data => {
+          setLyrics(data.lyrics || []);
+          setLoadingLyrics(false);
+        })
+        .catch(() => {
+          setLoadingLyrics(false);
+        });
     }
-  }, []);
+  }, [showLyrics, activeTrack?.title]);
 
-  // Initialize Full Master Audio Engine (Direct and Loud Sound Output)
+  // Sleep Timer Countdown Interval
   useEffect(() => {
-    const initPlayer = () => {
-      if (ytPlayerRef.current || !window.YT || !window.YT.Player || !ytDeckRef.current) return;
+    if (sleepTimerMinutes > 0) {
+      setSleepTimerSecondsLeft(sleepTimerMinutes * 60);
+      if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
 
-      const firstTrack = initialTracks[0];
-      const initialId = firstTrack?.youtubeVideoId || firstTrack?.candidateVideoIds?.[0] || "udra3Mfw2oo";
-      currentVideoIdRef.current = initialId;
-
-      ytPlayerRef.current = new window.YT.Player(ytDeckRef.current, {
-        height: "100%",
-        width: "100%",
-        videoId: initialId,
-        playerVars: {
-          autoplay: 0,
-          controls: 0,
-          disablekb: 1,
-          fs: 0,
-          modestbranding: 1,
-          playsinline: 1,
-          rel: 0,
-          origin: window.location.origin,
-        },
-        events: {
-          onReady: (event) => {
-            event.target.unMute();
-            event.target.setVolume(volume * 100);
-          },
-          onStateChange: (event) => {
-            // 1: PLAYING, 2: PAUSED, 0: ENDED, 3: BUFFERING
-            if (event.data === 1) {
-              setIsPlaying(true);
-              setIsBuffering(false);
-              const dur = event.target.getDuration();
-              if (dur > 0) setDuration(dur);
-            } else if (event.data === 2) {
-              setIsPlaying(false);
-              setIsBuffering(false);
-            } else if (event.data === 3) {
-              setIsBuffering(true);
-            } else if (event.data === 0) {
-              setIsPlaying(false);
-              setIsBuffering(false);
-              if (isRepeatRef.current && ytPlayerRef.current) {
-                ytPlayerRef.current.seekTo(0, true);
-                ytPlayerRef.current.playVideo();
-              } else {
-                handleNextTrack();
-              }
-            }
-          },
-          onError: (err) => {
-            console.warn("Audio Engine notice:", err.data);
-            setIsBuffering(false);
-          },
-        },
-      });
-    };
-
-    if (window.YT && window.YT.Player) {
-      initPlayer();
-    } else {
-      window.onYouTubeIframeAPIReady = initPlayer;
-    }
-  }, []);
-
-  // Track progress interval for full song audio
-  useEffect(() => {
-    if (isPlaying) {
-      progressIntervalRef.current = setInterval(() => {
-        if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === "function") {
-          const curr = ytPlayerRef.current.getCurrentTime();
-          const dur = ytPlayerRef.current.getDuration();
-          if (curr !== undefined) setCurrentTime(curr);
-          if (dur !== undefined && dur > 0) {
-            setDuration(dur);
+      sleepTimerRef.current = setInterval(() => {
+        setSleepTimerSecondsLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(sleepTimerRef.current);
+            if (audioRef.current) audioRef.current.pause();
+            setIsPlaying(false);
+            setSleepTimerMinutes(0);
+            ambientSynth.stopAll();
+            return 0;
           }
-        }
-      }, 300);
+          return prev - 1;
+        });
+      }, 1000);
     } else {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
+      setSleepTimerSecondsLeft(0);
     }
-    return () => {
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-    };
-  }, [isPlaying]);
 
-  // Guaranteed Click-to-Play Full 3-5 Minute Track
-  const playTrackAtIndex = (index) => {
-    if (index < 0 || index >= tracks.length) return;
-    const track = tracks[index];
+    return () => {
+      if (sleepTimerRef.current) clearInterval(sleepTimerRef.current);
+    };
+  }, [sleepTimerMinutes]);
+
+  // Play Track Function
+  const playTrackAtIndex = async (index) => {
+    const list = showLikedOnly ? likedSongs : tracks;
+    if (index < 0 || index >= list.length) return;
+    const track = list[index];
     if (!track) return;
 
     setCurrentTrackIndex(index);
     setCurrentTime(0);
-    const parsedDur = parseDurationToSeconds(track.duration);
-    setDuration(parsedDur);
-    setIsBuffering(true);
+    setIsLoadingAudio(true);
 
-    const targetVideoId = track.youtubeVideoId || track.candidateVideoIds?.[0];
+    if (isAiDjActive) {
+      speakDjIntro(track);
+    }
 
-    if (targetVideoId) {
-      currentVideoIdRef.current = targetVideoId;
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
-        ytPlayerRef.current.unMute();
-        ytPlayerRef.current.setVolume((isMuted ? 0 : volume) * 100);
-        ytPlayerRef.current.loadVideoById({
-          videoId: targetVideoId,
-          startSeconds: 0,
-        });
-        ytPlayerRef.current.playVideo();
-        setIsPlaying(true);
-        setIsBuffering(false);
-      }
-    } else {
-      // Resolve on demand
-      fetch(`/api/candidate-videos?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.videoId) {
+    let audioUrl = track.previewUrl;
+
+    if (!audioUrl) {
+      try {
+        const res = await fetch(`/api/track-audio?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.previewUrl) {
+            audioUrl = data.previewUrl;
             setTracks(prev => {
               const copy = [...prev];
               if (copy[index]) {
                 copy[index] = {
                   ...copy[index],
-                  youtubeVideoId: data.videoId,
-                  candidateVideoIds: data.videoIds || [data.videoId],
+                  previewUrl: data.previewUrl,
+                  artworkUrl: data.artworkUrl || copy[index].artworkUrl,
+                  duration: data.duration || copy[index].duration,
                 };
               }
               return copy;
             });
-            if (ytPlayerRef.current && typeof ytPlayerRef.current.loadVideoById === "function") {
-              ytPlayerRef.current.unMute();
-              ytPlayerRef.current.setVolume((isMuted ? 0 : volume) * 100);
-              ytPlayerRef.current.loadVideoById({
-                videoId: data.videoId,
-                startSeconds: 0,
-              });
-              ytPlayerRef.current.playVideo();
-              setIsPlaying(true);
-              setIsBuffering(false);
-            }
           }
+        }
+      } catch (e) {
+        console.warn("Audio fetch notice:", e);
+      }
+    }
+
+    if (audioRef.current && audioUrl) {
+      audioRef.current.src = audioUrl;
+      audioRef.current.currentTime = 0;
+      audioRef.current.volume = isMuted ? 0 : volume;
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+          setIsLoadingAudio(false);
         })
-        .catch(e => console.warn(e));
+        .catch(err => {
+          console.warn("Play error:", err);
+          setIsPlaying(false);
+          setIsLoadingAudio(false);
+        });
+    } else {
+      setIsLoadingAudio(false);
     }
 
     if (playerSectionRef.current) {
@@ -258,39 +348,34 @@ export default function Player({ playlist }) {
   };
 
   const togglePlay = () => {
-    if (!ytPlayerRef.current) return;
-    const track = tracks[currentTrackIndex];
-    const targetVideoId = track?.youtubeVideoId || track?.candidateVideoIds?.[0];
+    if (!audioRef.current) return;
 
     if (isPlaying) {
-      if (typeof ytPlayerRef.current.pauseVideo === "function") {
-        ytPlayerRef.current.pauseVideo();
-      }
+      audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      if (targetVideoId && currentVideoIdRef.current !== targetVideoId) {
-        currentVideoIdRef.current = targetVideoId;
-        ytPlayerRef.current.loadVideoById({
-          videoId: targetVideoId,
-          startSeconds: 0,
+      if (!audioRef.current.src && activeTrack?.previewUrl) {
+        audioRef.current.src = activeTrack.previewUrl;
+      }
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+        })
+        .catch(() => {
+          playTrackAtIndex(currentTrackIndex);
         });
-      }
-      if (typeof ytPlayerRef.current.playVideo === "function") {
-        ytPlayerRef.current.unMute();
-        ytPlayerRef.current.setVolume((isMuted ? 0 : volume) * 100);
-        ytPlayerRef.current.playVideo();
-      }
-      setIsPlaying(true);
     }
   };
 
   const handleNextTrack = () => {
-    if (isRepeatRef.current && ytPlayerRef.current) {
-      ytPlayerRef.current.seekTo(0, true);
-      ytPlayerRef.current.playVideo();
+    const list = showLikedOnly ? likedSongs : tracks;
+    if (isRepeat && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
       return;
     }
-    if (currentTrackIndex < tracks.length - 1) {
+    if (currentTrackIndex < list.length - 1) {
       playTrackAtIndex(currentTrackIndex + 1);
     } else {
       playTrackAtIndex(0);
@@ -303,34 +388,46 @@ export default function Player({ playlist }) {
     }
   };
 
-  // Instant Timeline Scrubbing / Seeking to exact second
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime || 0);
+      if (audioRef.current.duration && !isNaN(audioRef.current.duration) && audioRef.current.duration > 0) {
+        setDuration(audioRef.current.duration);
+      }
+    }
+  };
+
   const handleSeek = (e) => {
     const time = parseFloat(e.target.value);
     setCurrentTime(time);
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === "function") {
-      ytPlayerRef.current.seekTo(time, true);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
     }
   };
 
   const handleVolumeChange = (e) => {
     const val = parseFloat(e.target.value);
     setVolume(val);
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === "function") {
-      ytPlayerRef.current.setVolume(val * 100);
+    if (audioRef.current) {
+      audioRef.current.volume = val;
     }
     setIsMuted(val === 0);
   };
 
   const toggleMute = () => {
-    if (!ytPlayerRef.current) return;
+    if (!audioRef.current) return;
     if (isMuted) {
-      ytPlayerRef.current.unMute();
-      ytPlayerRef.current.setVolume((volume || 0.85) * 100);
+      audioRef.current.volume = volume || 0.85;
       setIsMuted(false);
     } else {
-      ytPlayerRef.current.mute();
+      audioRef.current.volume = 0;
       setIsMuted(true);
     }
+  };
+
+  const handleAmbientChange = (type, val) => {
+    setAmbientVolumes(prev => ({ ...prev, [type]: val }));
+    ambientSynth.setSound(type, val);
   };
 
   const handleCopyLink = () => {
@@ -340,7 +437,6 @@ export default function Player({ playlist }) {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Load 10+ more unique songs from catalog
   const handleLoadMore = async () => {
     if (loadingMore) return;
     setLoadingMore(true);
@@ -378,10 +474,24 @@ export default function Player({ playlist }) {
     borderColor: `${colorTheme[0]}40`,
   };
 
-  const fullTrackDuration = duration > 30 ? duration : (parseDurationToSeconds(activeTrack?.duration) || 210);
+  const displayedList = showLikedOnly ? likedSongs : tracks;
 
   return (
     <div className="w-full space-y-4 sm:space-y-6">
+      {/* High-Performance Master Audio Engine */}
+      <audio
+        ref={audioRef}
+        preload="auto"
+        playsInline
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleTimeUpdate}
+        onEnded={handleNextTrack}
+        onError={() => {
+          setIsPlaying(false);
+          setIsLoadingAudio(false);
+        }}
+      />
+
       {/* Playlist Hero Banner */}
       <div 
         style={gradientStyle}
@@ -418,7 +528,17 @@ export default function Player({ playlist }) {
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 w-full md:w-auto justify-start md:justify-end">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end">
+            {/* Share Mood Story Button */}
+            <button
+              onClick={() => setShowStoryModal(true)}
+              className="p-2 sm:p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-medium"
+              title="Share Mood Story Card"
+            >
+              <Camera className="w-3.5 h-3.5 text-amber-400" />
+              <span>Story</span>
+            </button>
+
             <button
               onClick={handleCopyLink}
               className="p-2 sm:p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-medium"
@@ -441,21 +561,72 @@ export default function Player({ playlist }) {
           </div>
         </div>
 
-        {/* Summary Bar */}
-        <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] sm:text-xs text-slate-400">
-          <div className="flex items-center gap-1.5 text-emerald-400 font-semibold">
-            <Radio className="w-3.5 h-3.5" />
-            <span>{tracks.length} Songs Loaded</span>
+        {/* Feature Tool Bar */}
+        <div className="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            {/* Liked Songs Filter Toggle */}
+            <button
+              onClick={() => setShowLikedOnly(!showLikedOnly)}
+              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all border ${
+                showLikedOnly
+                  ? "bg-rose-500/20 text-rose-400 border-rose-500/40"
+                  : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white"
+              }`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${showLikedOnly ? "fill-rose-500 text-rose-500" : ""}`} />
+              <span>Favorites ({likedSongs.length})</span>
+            </button>
+
+            {/* AI Radio DJ Toggle */}
+            <button
+              onClick={() => setIsAiDjActive(!isAiDjActive)}
+              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all border ${
+                isAiDjActive
+                  ? "bg-indigo-500/20 text-indigo-400 border-indigo-500/40"
+                  : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white"
+              }`}
+              title="AI Radio Host Voice"
+            >
+              <RadioTower className={`w-3.5 h-3.5 ${isAiDjActive ? "text-indigo-400 animate-pulse" : ""}`} />
+              <span>AI DJ {isAiDjActive ? "ON" : "OFF"}</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-1 text-emerald-300 font-bold">
-            <Music className="w-3.5 h-3.5" />
-            <span>Full 3–5 Minute Continuous Playback</span>
+          <div className="flex items-center gap-2">
+            {/* Ambient Soundscape Button */}
+            <button
+              onClick={() => setShowAmbientModal(true)}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 flex items-center gap-1.5 font-medium transition-all"
+            >
+              <CloudRain className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Ambience</span>
+            </button>
+
+            {/* Sleep Timer Dropdown */}
+            <div className="relative flex items-center gap-1 bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 text-slate-300">
+              <Timer className="w-3.5 h-3.5 text-amber-400" />
+              <select
+                value={sleepTimerMinutes}
+                onChange={(e) => setSleepTimerMinutes(parseInt(e.target.value, 10))}
+                className="bg-transparent text-xs text-white focus:outline-none cursor-pointer"
+              >
+                <option value="0" className="bg-slate-900">Timer: Off</option>
+                <option value="15" className="bg-slate-900">15 min</option>
+                <option value="30" className="bg-slate-900">30 min</option>
+                <option value="45" className="bg-slate-900">45 min</option>
+                <option value="60" className="bg-slate-900">60 min</option>
+              </select>
+              {sleepTimerSecondsLeft > 0 && (
+                <span className="text-[10px] text-amber-400 font-mono font-bold ml-1">
+                  ({Math.floor(sleepTimerSecondsLeft / 60)}m)
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Main Beautiful Pure Audio Player (100% Identical Layout to Screenshot) */}
+      {/* Main Beautiful Pure Audio Player */}
       {activeTrack && (
         <div 
           ref={playerSectionRef}
@@ -468,9 +639,9 @@ export default function Player({ playlist }) {
           />
 
           <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 sm:gap-8">
-            {/* Vinyl Album Art with Embedded Master Audio Deck inside */}
+            {/* Vinyl Album Art */}
             <div className="relative group flex-shrink-0">
-              <div className={`relative w-36 h-36 sm:w-44 sm:h-44 rounded-3xl overflow-hidden shadow-2xl border-2 border-slate-700 bg-slate-800 transition-transform duration-500 ${isPlaying ? "scale-105 shadow-emerald-500/25 ring-2 ring-emerald-500/50" : ""}`}>
+              <div className={`w-36 h-36 sm:w-44 sm:h-44 rounded-3xl overflow-hidden shadow-2xl border-2 border-slate-700 bg-slate-800 transition-transform duration-500 ${isPlaying ? "scale-105 shadow-emerald-500/25 ring-2 ring-emerald-500/50" : ""}`}>
                 {activeTrack.artworkUrl ? (
                   <img 
                     src={activeTrack.artworkUrl} 
@@ -482,17 +653,11 @@ export default function Player({ playlist }) {
                     <Disc3 className={`w-16 h-16 text-emerald-400 ${isPlaying ? "animate-spin" : ""}`} />
                   </div>
                 )}
-
-                {/* Master Audio Deck Container (Positioned inside active vinyl with opacity 0.001 to ensure browser output mixer stays 100% active!) */}
-                <div 
-                  ref={ytDeckRef}
-                  className="absolute inset-0 w-full h-full opacity-[0.001] pointer-events-none z-0"
-                />
               </div>
 
               {/* Pulsing play badge */}
               {isPlaying && (
-                <span className="absolute -bottom-2 -right-2 flex h-5 w-5 z-20">
+                <span className="absolute -bottom-2 -right-2 flex h-5 w-5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-5 w-5 bg-emerald-500 border-2 border-slate-900" />
                 </span>
@@ -501,45 +666,62 @@ export default function Player({ playlist }) {
 
             {/* Song Details & Pure Audio Controls */}
             <div className="flex-1 w-full flex flex-col justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-bold uppercase tracking-wider">
-                    Now Playing
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-mono">
-                    • {activeTrack.duration || formatTime(fullTrackDuration)}
-                  </span>
-                  {isBuffering && (
-                    <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold animate-pulse">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Playing Full Song…
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-bold uppercase tracking-wider">
+                      Now Playing
                     </span>
+                    {activeTrack.duration && (
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        • {activeTrack.duration}
+                      </span>
+                    )}
+                    {isDjSpeaking && (
+                      <span className="text-[10px] text-indigo-400 flex items-center gap-1 font-bold animate-pulse">
+                        <RadioTower className="w-3 h-3" /> AI DJ Speaking…
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-lg sm:text-2xl font-extrabold text-white leading-tight">
+                    {activeTrack.title}
+                  </h3>
+                  <p className="text-sm sm:text-base text-slate-300 font-medium mt-1">
+                    {activeTrack.artist}
+                  </p>
+                  {activeTrack.album && (
+                    <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md">
+                      Album: {activeTrack.album}
+                    </p>
                   )}
                 </div>
 
-                <h3 className="text-lg sm:text-2xl font-extrabold text-white leading-tight">
-                  {activeTrack.title}
-                </h3>
-                <p className="text-sm sm:text-base text-slate-300 font-medium mt-1">
-                  {activeTrack.artist}
-                </p>
-                {activeTrack.album && (
-                  <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md">
-                    Album: {activeTrack.album}
-                  </p>
-                )}
+                {/* Heart Favorite Button */}
+                <button
+                  onClick={() => toggleLike(activeTrack)}
+                  className={`p-2.5 rounded-2xl border transition-all active:scale-90 ${
+                    isCurrentLiked
+                      ? "bg-rose-500/20 border-rose-500/50 text-rose-500 shadow-md shadow-rose-500/20"
+                      : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                  }`}
+                  title={isCurrentLiked ? "Remove from Favorites" : "Add to Favorites"}
+                >
+                  <Heart className={`w-5 h-5 ${isCurrentLiked ? "fill-rose-500" : ""}`} />
+                </button>
               </div>
 
-              {/* Interactive Timeline Scrubber (Full 3-5 Minutes with instant seeking) */}
+              {/* Interactive Timeline Scrubber */}
               <div className="space-y-1.5 w-full">
                 <div className="flex items-center justify-between text-xs text-slate-400 font-mono">
                   <span className="text-emerald-400 font-bold">{formatTime(currentTime)}</span>
-                  <span>{formatTime(fullTrackDuration)}</span>
+                  <span>{formatTime(duration || 30)}</span>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max={fullTrackDuration}
-                  step="1"
+                  max={duration || 30}
+                  step="0.1"
                   value={currentTime}
                   onChange={handleSeek}
                   className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 transition-all hover:h-2.5"
@@ -595,16 +777,20 @@ export default function Player({ playlist }) {
                   </button>
                 </div>
 
-                {/* Live Animated Equalizer & Volume */}
-                <div className="flex items-center gap-4">
-                  {/* Equalizer Soundwave */}
-                  <div className="hidden sm:flex items-end gap-1 h-6 px-3 py-1 bg-slate-950/70 rounded-xl border border-slate-800">
-                    <span className={`w-1 bg-emerald-400 rounded-full transition-all duration-150 ${isPlaying ? "h-5 animate-pulse" : "h-1.5"}`} />
-                    <span className={`w-1 bg-emerald-400 rounded-full transition-all duration-150 ${isPlaying ? "h-3 animate-pulse" : "h-2"}`} />
-                    <span className={`w-1 bg-emerald-400 rounded-full transition-all duration-150 ${isPlaying ? "h-6 animate-pulse" : "h-1"}`} />
-                    <span className={`w-1 bg-emerald-400 rounded-full transition-all duration-150 ${isPlaying ? "h-4 animate-pulse" : "h-3"}`} />
-                    <span className={`w-1 bg-emerald-400 rounded-full transition-all duration-150 ${isPlaying ? "h-2 animate-pulse" : "h-1.5"}`} />
-                  </div>
+                {/* Lyrics & Volume Controls */}
+                <div className="flex items-center gap-3">
+                  {/* Lyrics Toggle Button */}
+                  <button
+                    onClick={() => setShowLyrics(!showLyrics)}
+                    className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                      showLyrics
+                        ? "bg-emerald-500 text-slate-950 shadow"
+                        : "bg-slate-800 border-slate-700 text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    <Mic2 className="w-3.5 h-3.5" />
+                    <span>Lyrics</span>
+                  </button>
 
                   {/* Volume Slider */}
                   <div className="flex items-center gap-2 text-slate-400 bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-800">
@@ -624,7 +810,7 @@ export default function Player({ playlist }) {
                 </div>
               </div>
 
-              {/* External Links (Spotify & YouTube) */}
+              {/* External Links */}
               <div className="pt-2 flex items-center justify-end gap-2 text-xs">
                 <a
                   href={activeTrack.spotifyUrl}
@@ -651,133 +837,340 @@ export default function Player({ playlist }) {
         </div>
       )}
 
-      {/* Recommended Track List */}
+      {/* Real-Time Synchronized Karaoke Lyrics Drawer */}
+      {showLyrics && (
+        <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-5 shadow-2xl transition-all animate-in fade-in slide-in-from-bottom duration-300">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
+            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+              <Mic2 className="w-4 h-4 text-emerald-400" />
+              <span>Karaoke Lyrics — {activeTrack?.title}</span>
+            </h4>
+            <button onClick={() => setShowLyrics(false)} className="text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {loadingLyrics ? (
+            <div className="py-8 flex flex-col items-center justify-center space-y-2 text-slate-400 text-xs">
+              <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+              <span>Generating real-time karaoke lyrics…</span>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-thin">
+              {lyrics.map((line, idx) => {
+                const isActive = currentTime >= line.time && (idx === lyrics.length - 1 || currentTime < lyrics[idx + 1].time);
+                return (
+                  <div
+                    key={idx}
+                    className={`p-2.5 rounded-xl transition-all duration-300 ${
+                      isActive
+                        ? "bg-emerald-500/20 text-emerald-300 font-extrabold text-sm sm:text-base border border-emerald-500/40 shadow-sm scale-105"
+                        : "text-slate-400 text-xs sm:text-sm hover:text-white"
+                    }`}
+                  >
+                    {line.text}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ambient Soundscapes Mixer Modal */}
+      {showAmbientModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <CloudRain className="w-5 h-5 text-cyan-400" />
+                <span>Ambient Sound Mixer</span>
+              </h3>
+              <button onClick={() => setShowAmbientModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400">Mix relaxing background soundscapes underneath your music:</p>
+
+            <div className="space-y-3.5">
+              {/* Rain */}
+              <div className="flex items-center justify-between gap-3 bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2 text-xs font-semibold text-cyan-400 w-24">
+                  <CloudRain className="w-4 h-4" />
+                  <span>Rain</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={ambientVolumes.rain}
+                  onChange={(e) => handleAmbientChange('rain', parseFloat(e.target.value))}
+                  className="flex-1 accent-cyan-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Waves */}
+              <div className="flex items-center justify-between gap-3 bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2 text-xs font-semibold text-blue-400 w-24">
+                  <Waves className="w-4 h-4" />
+                  <span>Ocean</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={ambientVolumes.waves}
+                  onChange={(e) => handleAmbientChange('waves', parseFloat(e.target.value))}
+                  className="flex-1 accent-blue-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Campfire */}
+              <div className="flex items-center justify-between gap-3 bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 w-24">
+                  <Flame className="w-4 h-4" />
+                  <span>Campfire</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={ambientVolumes.fire}
+                  onChange={(e) => handleAmbientChange('fire', parseFloat(e.target.value))}
+                  className="flex-1 accent-amber-400 cursor-pointer"
+                />
+              </div>
+
+              {/* Coffee */}
+              <div className="flex items-center justify-between gap-3 bg-slate-950 p-3 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2 text-xs font-semibold text-orange-400 w-24">
+                  <Coffee className="w-4 h-4" />
+                  <span>Cafe</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={ambientVolumes.coffee}
+                  onChange={(e) => handleAmbientChange('coffee', parseFloat(e.target.value))}
+                  className="flex-1 accent-orange-400 cursor-pointer"
+                />
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setAmbientVolumes({ rain: 0, waves: 0, fire: 0, coffee: 0 });
+                ambientSynth.stopAll();
+              }}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all"
+            >
+              Turn Off All Ambience
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Share Mood Story Card Modal */}
+      {showStoryModal && activeTrack && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 text-center">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Share Mood Story</span>
+              <button onClick={() => setShowStoryModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* The Story Card Graphic */}
+            <div 
+              style={gradientStyle}
+              className="p-6 rounded-3xl border border-emerald-500/40 shadow-2xl space-y-4 text-center bg-slate-950/80"
+            >
+              <div className="text-3xl">{emoji}</div>
+              <div className="w-32 h-32 mx-auto rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-700">
+                {activeTrack.artworkUrl ? (
+                  <img src={activeTrack.artworkUrl} alt={activeTrack.title} className="w-full h-full object-cover" />
+                ) : (
+                  <Disc3 className="w-full h-full p-6 text-emerald-400" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white truncate">{activeTrack.title}</h3>
+                <p className="text-xs text-slate-300 truncate mt-0.5">{activeTrack.artist}</p>
+              </div>
+              <div className="pt-2 border-t border-slate-800 text-[11px] text-emerald-300 font-mono font-bold">
+                🎧 Listening on AuraBeat
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                const shareText = `Listening to "${activeTrack.title}" on AuraBeat! 🎵 ${spotifyUrl}`;
+                navigator.clipboard.writeText(shareText);
+                alert("Story caption copied to clipboard! Share on WhatsApp / Instagram.");
+                setShowStoryModal(false);
+              }}
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold rounded-2xl shadow-lg transition-all"
+            >
+              Copy Share Story Link
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Recommended / Liked Track List */}
       <div className="bg-slate-900/95 rounded-3xl border border-slate-800 p-3.5 sm:p-6 shadow-xl">
         <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-800">
           <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
             <Music className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
-            <span>Playlist Songs ({tracks.length})</span>
+            <span>{showLikedOnly ? "Liked Songs" : "Playlist Songs"} ({displayedList.length})</span>
           </h3>
-          <span className="text-[11px] text-slate-400">Tap any song to play full 3–5 min song</span>
+          <span className="text-[11px] text-slate-400">Tap any song to play instantly</span>
         </div>
 
-        <div className="space-y-2">
-          {tracks.map((track, idx) => {
-            const isThisSelected = currentTrackIndex === idx;
+        {displayedList.length === 0 ? (
+          <div className="py-8 text-center text-slate-400 text-xs">
+            {showLikedOnly ? "No liked songs yet! Click the ❤️ heart button on any song to save it." : "No songs found."}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {displayedList.map((track, idx) => {
+              const isThisSelected = currentTrackIndex === idx;
+              const isLiked = likedSongs.some(t => t.title.toLowerCase() === track.title.toLowerCase());
 
-            return (
-              <div
-                key={idx}
-                onClick={() => playTrackAtIndex(idx)}
-                className={`group relative flex items-center justify-between gap-2.5 p-2.5 sm:p-3.5 rounded-2xl transition-all duration-150 border cursor-pointer ${
-                  isThisSelected
-                    ? "bg-slate-800/95 border-emerald-500/70 shadow-md shadow-emerald-500/10"
-                    : "bg-slate-950/50 hover:bg-slate-800/60 border-slate-800/70 hover:border-slate-700"
-                }`}
-              >
-                {/* Album Art & Song Details */}
-                <div className="flex items-center gap-2.5 sm:gap-3.5 flex-1 min-w-0">
-                  <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 shadow">
-                    {track.artworkUrl ? (
-                      <img 
-                        src={track.artworkUrl} 
-                        alt={track.title} 
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <Music className="w-5 h-5 text-slate-500" />
-                    )}
-
-                    {/* Play Button Overlay */}
-                    <div
-                      className={`absolute inset-0 flex items-center justify-center transition-all ${
-                        isThisSelected && isPlaying
-                          ? "bg-emerald-500 text-slate-950" 
-                          : "bg-slate-950/60 text-white opacity-0 group-hover:opacity-100"
-                      }`}
-                    >
-                      {isThisSelected && isPlaying ? (
-                        <Pause className="w-4 h-4 fill-current" />
+              return (
+                <div
+                  key={idx}
+                  onClick={() => playTrackAtIndex(idx)}
+                  className={`group relative flex items-center justify-between gap-2.5 p-2.5 sm:p-3.5 rounded-2xl transition-all duration-150 border cursor-pointer ${
+                    isThisSelected
+                      ? "bg-slate-800/95 border-emerald-500/70 shadow-md shadow-emerald-500/10"
+                      : "bg-slate-950/50 hover:bg-slate-800/60 border-slate-800/70 hover:border-slate-700"
+                  }`}
+                >
+                  {/* Album Art & Song Details */}
+                  <div className="flex items-center gap-2.5 sm:gap-3.5 flex-1 min-w-0">
+                    <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 shadow">
+                      {track.artworkUrl ? (
+                        <img 
+                          src={track.artworkUrl} 
+                          alt={track.title} 
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
                       ) : (
-                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                        <Music className="w-5 h-5 text-slate-500" />
                       )}
+
+                      {/* Play Button Overlay */}
+                      <div
+                        className={`absolute inset-0 flex items-center justify-center transition-all ${
+                          isThisSelected && isPlaying
+                            ? "bg-emerald-500 text-slate-950" 
+                            : "bg-slate-950/60 text-white opacity-0 group-hover:opacity-100"
+                        }`}
+                      >
+                        {isThisSelected && isPlaying ? (
+                          <Pause className="w-4 h-4 fill-current" />
+                        ) : (
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Song Title & Artist */}
+                    <div className="flex-1 min-w-0 pr-1">
+                      <h4 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isThisSelected ? "text-emerald-400 font-extrabold" : "text-white"}`}>
+                        {track.title}
+                      </h4>
+
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 truncate mt-0.5">
+                        <span className="font-medium text-slate-300 truncate">{track.artist}</span>
+                        {track.duration && (
+                          <span className="font-mono text-slate-400 text-[10px] flex-shrink-0">
+                            • {track.duration}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Song Title & Artist */}
-                  <div className="flex-1 min-w-0 pr-1">
-                    <h4 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isThisSelected ? "text-emerald-400 font-extrabold" : "text-white"}`}>
-                      {track.title}
-                    </h4>
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    {/* Favorite Heart Button */}
+                    <button
+                      onClick={() => toggleLike(track)}
+                      className={`p-1.5 rounded-xl transition-all ${
+                        isLiked ? "text-rose-500" : "text-slate-500 hover:text-slate-300"
+                      }`}
+                      title={isLiked ? "Unlike" : "Like"}
+                    >
+                      <Heart className={`w-4 h-4 ${isLiked ? "fill-rose-500" : ""}`} />
+                    </button>
 
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 truncate mt-0.5">
-                      <span className="font-medium text-slate-300 truncate">{track.artist}</span>
-                      {track.duration && (
-                        <span className="font-mono text-slate-400 text-[10px] flex-shrink-0">
-                          • {track.duration}
-                        </span>
-                      )}
-                    </div>
+                    <button
+                      onClick={() => {
+                        if (isThisSelected) {
+                          togglePlay();
+                        } else {
+                          playTrackAtIndex(idx);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                        isThisSelected && isPlaying
+                          ? "bg-emerald-500 text-slate-950 shadow"
+                          : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
+                      }`}
+                      title="Play Audio"
+                    >
+                      {isThisSelected && isPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+                      <span>{isThisSelected && isPlaying ? "Playing" : "Play"}</span>
+                    </button>
+
+                    <a
+                      href={track.spotifyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open on Spotify"
+                      className="p-1.5 sm:p-2 text-slate-400 hover:text-[#1DB954] hover:bg-slate-800 rounded-xl transition-all"
+                    >
+                      <SpotifyIcon className="w-3.5 h-3.5" />
+                    </a>
                   </div>
                 </div>
-
-                {/* Action Buttons */}
-                <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => {
-                      if (isThisSelected) {
-                        togglePlay();
-                      } else {
-                        playTrackAtIndex(idx);
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      isThisSelected && isPlaying
-                        ? "bg-emerald-500 text-slate-950 shadow"
-                        : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
-                    }`}
-                    title="Play Audio"
-                  >
-                    {isThisSelected && isPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
-                    <span>{isThisSelected && isPlaying ? "Playing" : "Play"}</span>
-                  </button>
-
-                  <a
-                    href={track.spotifyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Open on Spotify"
-                    className="p-1.5 sm:p-2 text-slate-400 hover:text-[#1DB954] hover:bg-slate-800 rounded-xl transition-all"
-                  >
-                    <SpotifyIcon className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Load More Songs Button */}
-        <div className="mt-4 pt-3 border-t border-slate-800 flex justify-center">
-          <button
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-            className="px-5 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-slate-800 to-slate-800/90 hover:from-slate-700 hover:to-slate-700/90 border border-slate-700 hover:border-emerald-500/60 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
-          >
-            {loadingMore ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                <span>Fetching More Songs…</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4 text-emerald-400" />
-                <span>Load More Songs for this Mood</span>
-              </>
-            )}
-          </button>
-        </div>
+        {!showLikedOnly && (
+          <div className="mt-4 pt-3 border-t border-slate-800 flex justify-center">
+            <button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="px-5 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-slate-800 to-slate-800/90 hover:from-slate-700 hover:to-slate-700/90 border border-slate-700 hover:border-emerald-500/60 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+            >
+              {loadingMore ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  <span>Fetching More Songs…</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 text-emerald-400" />
+                  <span>Load More Songs for this Mood</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

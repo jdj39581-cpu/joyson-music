@@ -243,6 +243,48 @@ async function searchLiveMusicCatalog(query, country = 'IN', limit = 30) {
 }
 
 /**
+ * Fetch real synchronized karaoke lyrics with Gemini AI & fallbacks
+ */
+async function fetchTrackLyrics(title, artist = '') {
+  if (genAI) {
+    try {
+      const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+      const prompt = `
+Song: "${title}" by "${artist}".
+Task: Provide synchronized lyrics for this song with timestamps across the track (0:00 to 0:30 and full length).
+If the song is in a regional Indian language (Kannada, Hindi, Konkani, Tamil, Telugu), provide both the original script and Latin/English transliteration line.
+
+Respond with ONLY a raw JSON array of objects:
+[
+  { "time": 0, "text": "🎵 Intro Music..." },
+  { "time": 4, "text": "First line of the song lyrics" },
+  { "time": 8, "text": "Second line of the song lyrics" }
+]`;
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text().trim();
+      const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+      const lyricsArray = JSON.parse(cleaned);
+      if (Array.isArray(lyricsArray) && lyricsArray.length > 0) {
+        return lyricsArray;
+      }
+    } catch (e) {
+      console.warn('Lyrics AI notice:', e.message);
+    }
+  }
+
+  // Fallback timed karaoke lyrics template
+  return [
+    { time: 0, text: `🎵 Playing ${title} by ${artist}` },
+    { time: 3, text: `✨ Feel the rhythm and melody...` },
+    { time: 8, text: `🎶 "${title}" - Verse 1` },
+    { time: 14, text: `💫 Singing with the rhythm and groove...` },
+    { time: 20, text: `🔥 Chorus melody in full flow!` },
+    { time: 26, text: `✨ AuraBeat Studio Master Stream` }
+  ];
+}
+
+/**
  * Fetch official artwork and song details from iTunes/Apple Music.
  */
 async function fetchRealTrackAudio(title, artist = '') {
@@ -487,7 +529,6 @@ Respond with ONLY a raw JSON object:
       country = 'IN';
     }
 
-    // Pick 2 random rotating search queries from the term pool
     const term1 = searchTerms[Math.floor(Math.random() * searchTerms.length)];
     const term2 = searchTerms[Math.floor(Math.random() * searchTerms.length)];
 
@@ -607,4 +648,4 @@ function generateFallbackRecommendations(mood) {
   };
 }
 
-module.exports = { analyzeMoodAndRecommend, getMoreTracks, fetchRealTrackAudio, getCandidateVideoIds };
+module.exports = { analyzeMoodAndRecommend, getMoreTracks, fetchRealTrackAudio, getCandidateVideoIds, fetchTrackLyrics };
