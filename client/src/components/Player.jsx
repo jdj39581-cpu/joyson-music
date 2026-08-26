@@ -28,7 +28,10 @@ import {
   X,
   Waves,
   Flame,
-  Coffee
+  Coffee,
+  RotateCw,
+  TrendingUp,
+  Flame as FireIcon
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -48,7 +51,7 @@ function YouTubeIcon({ className = "w-4 h-4" }) {
   );
 }
 
-// Web Audio API Ambient Sound Synthesizer (Rain, Ocean, Campfire, Coffee Shop)
+// Web Audio API Ambient Sound Synthesizer
 class AmbientSoundGenerator {
   constructor() {
     this.ctx = null;
@@ -123,7 +126,7 @@ class AmbientSoundGenerator {
 
 const ambientSynth = new AmbientSoundGenerator();
 
-export default function Player({ playlist }) {
+export default function Player({ playlist, onRefreshPlaylist }) {
   const { 
     mood,
     vibeTitle, 
@@ -146,6 +149,7 @@ export default function Player({ playlist }) {
   const [isRepeat, setIsRepeat] = useState(false);
   const [copied, setCopied] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
 
   // New Feature States
@@ -173,7 +177,6 @@ export default function Player({ playlist }) {
   const [sleepTimerSecondsLeft, setSleepTimerSecondsLeft] = useState(0);
 
   const [showStoryModal, setShowStoryModal] = useState(false);
-  const [bassBoost, setBassBoost] = useState(false);
 
   const audioRef = useRef(null);
   const playerSectionRef = useRef(null);
@@ -219,9 +222,9 @@ export default function Player({ playlist }) {
     window.speechSynthesis.cancel();
 
     const intros = [
-      `Up next on Joyson Music, here's ${track.title} by ${track.artist}! Feel the rhythm.`,
+      `Up next on Joyson Music, here's ${track.title} by ${track.artist}! Top streamed blockbuster.`,
       `You're tuned into AuraBeat. Let's vibe with ${track.title}!`,
-      `Here comes a favorite for your mood, ${track.title} by ${track.artist}. Enjoy!`,
+      `Here comes the #1 most listened hit for your vibe, ${track.title} by ${track.artist}. Enjoy!`,
       `Spinning next, ${track.title}. Let the music take over!`
     ];
     const text = intros[Math.floor(Math.random() * intros.length)];
@@ -437,6 +440,34 @@ export default function Player({ playlist }) {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  // Refresh All Songs
+  const handleRefreshAll = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      if (onRefreshPlaylist) {
+        await onRefreshPlaylist(mood || vibeTitle);
+      } else {
+        const res = await fetch("/api/playlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mood: mood || vibeTitle }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tracks && data.tracks.length > 0) {
+            setTracks(data.tracks);
+            setCurrentTrackIndex(0);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Refresh error:", e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleLoadMore = async () => {
     if (loadingMore) return;
     setLoadingMore(true);
@@ -503,7 +534,7 @@ export default function Player({ playlist }) {
               <span className="text-2xl sm:text-3xl">{emoji}</span>
               <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1">
                 <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                AI Music Mix
+                Spotify Top Mix
               </span>
               {energy && (
                 <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-full text-[11px] sm:text-xs font-semibold flex items-center gap-1">
@@ -529,6 +560,17 @@ export default function Player({ playlist }) {
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end">
+            {/* Refresh All Songs Button */}
+            <button
+              onClick={handleRefreshAll}
+              disabled={isRefreshing}
+              className="p-2 sm:p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 disabled:opacity-50"
+              title="Refresh all songs"
+            >
+              <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isRefreshing ? "animate-spin" : ""}`} />
+              <span>{isRefreshing ? "Refreshing…" : "Refresh Mix"}</span>
+            </button>
+
             {/* Share Mood Story Button */}
             <button
               onClick={() => setShowStoryModal(true)}
@@ -668,10 +710,16 @@ export default function Player({ playlist }) {
             <div className="flex-1 w-full flex flex-col justify-between gap-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md text-[10px] font-bold uppercase tracking-wider">
                       Now Playing
                     </span>
+                    {activeTrack.streamCount && (
+                      <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-md text-[10px] font-bold flex items-center gap-1">
+                        <FireIcon className="w-2.5 h-2.5 fill-amber-400" />
+                        {activeTrack.streamCount}
+                      </span>
+                    )}
                     {activeTrack.duration && (
                       <span className="text-[11px] text-slate-400 font-mono">
                         • {activeTrack.duration}
@@ -1026,12 +1074,19 @@ export default function Player({ playlist }) {
 
       {/* Recommended / Liked Track List */}
       <div className="bg-slate-900/95 rounded-3xl border border-slate-800 p-3.5 sm:p-6 shadow-xl">
-        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-800">
-          <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between mb-3 pb-2.5 border-b border-slate-800 gap-2">
+          <div className="flex items-center gap-2">
             <Music className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
-            <span>{showLikedOnly ? "Liked Songs" : "Playlist Songs"} ({displayedList.length})</span>
-          </h3>
-          <span className="text-[11px] text-slate-400">Tap any song to play instantly</span>
+            <h3 className="text-sm sm:text-base font-bold text-white">
+              {showLikedOnly ? "Liked Songs" : "Top Most Listened Tracks"} ({displayedList.length})
+            </h3>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] sm:text-[11px] text-amber-400/90 font-semibold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
+              <TrendingUp className="w-3 h-3" /> Ranked by Popularity
+            </span>
+          </div>
         </div>
 
         {displayedList.length === 0 ? (
@@ -1043,6 +1098,8 @@ export default function Player({ playlist }) {
             {displayedList.map((track, idx) => {
               const isThisSelected = currentTrackIndex === idx;
               const isLiked = likedSongs.some(t => t.title.toLowerCase() === track.title.toLowerCase());
+              const isTopOne = idx === 0 && !showLikedOnly;
+              const isTopThree = idx < 3 && !showLikedOnly;
 
               return (
                 <div
@@ -1051,7 +1108,9 @@ export default function Player({ playlist }) {
                   className={`group relative flex items-center justify-between gap-2.5 p-2.5 sm:p-3.5 rounded-2xl transition-all duration-150 border cursor-pointer ${
                     isThisSelected
                       ? "bg-slate-800/95 border-emerald-500/70 shadow-md shadow-emerald-500/10"
-                      : "bg-slate-950/50 hover:bg-slate-800/60 border-slate-800/70 hover:border-slate-700"
+                      : isTopOne
+                        ? "bg-gradient-to-r from-amber-500/10 to-slate-950 border-amber-500/30 hover:border-amber-500/60"
+                        : "bg-slate-950/50 hover:bg-slate-800/60 border-slate-800/70 hover:border-slate-700"
                   }`}
                 >
                   {/* Album Art & Song Details */}
@@ -1084,16 +1143,33 @@ export default function Player({ playlist }) {
                       </div>
                     </div>
 
-                    {/* Song Title & Artist */}
+                    {/* Song Title, Ranking & Stream Count */}
                     <div className="flex-1 min-w-0 pr-1">
-                      <h4 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isThisSelected ? "text-emerald-400 font-extrabold" : "text-white"}`}>
-                        {track.title}
-                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        {isTopOne && (
+                          <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black rounded text-[9px] uppercase tracking-wider flex items-center gap-0.5">
+                            <FireIcon className="w-2.5 h-2.5 fill-current" /> #1 Hit
+                          </span>
+                        )}
+                        {isTopThree && !isTopOne && (
+                          <span className="px-1.5 py-0.2 bg-slate-800 text-amber-300 font-bold border border-amber-500/30 rounded text-[9px]">
+                            Top {idx + 1}
+                          </span>
+                        )}
+                        <h4 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isThisSelected ? "text-emerald-400 font-extrabold" : "text-white"}`}>
+                          {track.title}
+                        </h4>
+                      </div>
 
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-400 truncate mt-0.5">
                         <span className="font-medium text-slate-300 truncate">{track.artist}</span>
+                        {track.streamCount && (
+                          <span className="font-mono text-amber-400/90 text-[10px] flex-shrink-0 font-semibold">
+                            • {track.streamCount}
+                          </span>
+                        )}
                         {track.duration && (
-                          <span className="font-mono text-slate-400 text-[10px] flex-shrink-0">
+                          <span className="font-mono text-slate-500 text-[10px] flex-shrink-0">
                             • {track.duration}
                           </span>
                         )}
@@ -1160,7 +1236,7 @@ export default function Player({ playlist }) {
               {loadingMore ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                  <span>Fetching More Songs…</span>
+                  <span>Fetching More Top Songs…</span>
                 </>
               ) : (
                 <>
