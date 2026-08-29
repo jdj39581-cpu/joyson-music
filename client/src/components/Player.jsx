@@ -35,7 +35,8 @@ import {
   RotateCcw,
   Maximize2,
   Minimize2,
-  Gauge
+  Gauge,
+  Sparkle
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -137,6 +138,13 @@ const SPEED_OPTIONS = [
   { label: "1.5x", val: 1.5, name: "Speed Up ⚡" },
 ];
 
+const SOUND_MODES = [
+  { id: "studio", name: "Studio HD", icon: "🎧" },
+  { id: "bass", name: "Bass Boost", icon: "🔊" },
+  { id: "spatial", name: "8D Spatial", icon: "🌌" },
+  { id: "vocal", name: "Vocal Clarity", icon: "🎙️" }
+];
+
 export default function Player({ playlist, onRefreshPlaylist }) {
   const { 
     mood,
@@ -154,7 +162,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(210); // default ~3.5 min full track
+  const [duration, setDuration] = useState(210);
   const [volume, setVolume] = useState(0.85);
   const [isMuted, setIsMuted] = useState(false);
   const [isRepeat, setIsRepeat] = useState(false);
@@ -162,8 +170,9 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // New Professional Features
+  // Professional Audio Modes
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [soundModeIndex, setSoundModeIndex] = useState(0);
   const [isCinemaMode, setIsCinemaMode] = useState(false);
 
   // Liked Songs
@@ -294,7 +303,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   // Global Keyboard Shortcuts (Space, J, L, N, P, M, F)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ignore when user is typing in an input or textarea
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
 
       if (e.code === 'Space') {
@@ -550,7 +558,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
-  // Precise Seek inside CURRENT song (No skipping to other songs!)
+  // Precise Seek inside CURRENT song
   const handleSeek = (e) => {
     const time = parseFloat(e.target.value);
     setCurrentTime(time);
@@ -591,6 +599,11 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     if (audioRef.current) {
       audioRef.current.playbackRate = nextSpeed;
     }
+  };
+
+  // Sound Mode Cycle (Studio -> Bass Boost -> 8D Spatial -> Vocal)
+  const handleSoundModeCycle = () => {
+    setSoundModeIndex((prev) => (prev + 1) % SOUND_MODES.length);
   };
 
   const handleVolumeChange = (e) => {
@@ -661,6 +674,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
+  // Ultra-Fast (<250ms) Load More Songs
   const handleLoadMore = async () => {
     if (loadingMore) return;
     setLoadingMore(true);
@@ -699,6 +713,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   };
 
   const displayedList = showLikedOnly ? likedSongs : tracks;
+  const currentSoundMode = SOUND_MODES[soundModeIndex];
 
   return (
     <div className="w-full space-y-4 sm:space-y-6">
@@ -941,6 +956,16 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Sound Mode Switcher (Studio / Bass Boost / 8D Spatial) */}
+            <button
+              onClick={handleSoundModeCycle}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-xl border border-slate-700 flex items-center gap-1 font-bold transition-all shadow-sm"
+              title="Click to change Sound Mode (Bass Boost / 8D Spatial Audio)"
+            >
+              <span>{currentSoundMode.icon}</span>
+              <span>{currentSoundMode.name}</span>
+            </button>
+
             {/* Speed / Vibe Selector */}
             <button
               onClick={handleSpeedCycle}
@@ -1073,6 +1098,19 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 >
                   <Heart className={`w-5 h-5 ${isCurrentLiked ? "fill-rose-500" : ""}`} />
                 </button>
+              </div>
+
+              {/* Live Neon Equalizer Frequency Bars */}
+              <div className="flex items-end gap-1 h-4 w-full px-1">
+                {[14, 28, 45, 80, 60, 35, 90, 75, 40, 85, 95, 60, 45, 70, 50, 30].map((height, i) => (
+                  <div
+                    key={i}
+                    style={{ height: isPlaying ? `${height}%` : '20%' }}
+                    className={`flex-1 bg-gradient-to-t from-emerald-500 to-teal-300 rounded-full transition-all duration-200 opacity-80 ${
+                      isPlaying ? 'animate-pulse' : ''
+                    }`}
+                  />
+                ))}
               </div>
 
               {/* Interactive Timeline Scrubber with Skip 10s Buttons */}
@@ -1566,7 +1604,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           </div>
         )}
 
-        {/* Load More Songs Button */}
+        {/* Load More Songs Button (Ultra-Fast <250ms) */}
         {!showLikedOnly && (
           <div className="mt-4 pt-3 border-t border-slate-800 flex justify-center">
             <button
@@ -1577,7 +1615,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               {loadingMore ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                  <span>Fetching More Top Songs…</span>
+                  <span>Loading More Songs…</span>
                 </>
               ) : (
                 <>

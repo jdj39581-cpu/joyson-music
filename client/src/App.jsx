@@ -7,6 +7,15 @@ import { QRCodeSVG } from "qrcode.react";
 
 const HISTORY_KEY = "aurabeat_mood_history";
 
+// Trending moods to auto-refresh on initial visit
+const AUTO_REFRESH_MOODS = [
+  "Trending Top Hits",
+  "Kannada Superhits",
+  "Bollywood Party Hits",
+  "Konkani Coastal Classics",
+  "English Billboard Pop Hits"
+];
+
 export default function App() {
   const [playlist, setPlaylist] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -17,7 +26,7 @@ export default function App() {
   const [mobileUrl, setMobileUrl] = useState(`http://192.168.1.105:5173`);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  // Load history & fetch local network IP for mobile
+  // Load history, fetch local network IP, and auto-refresh songs on page visit!
   useEffect(() => {
     try {
       const saved = localStorage.getItem(HISTORY_KEY);
@@ -37,6 +46,10 @@ export default function App() {
         }
       })
       .catch(() => {});
+
+    // Automatically load fresh songs on website visit
+    const randomInitialMood = AUTO_REFRESH_MOODS[Math.floor(Math.random() * AUTO_REFRESH_MOODS.length)];
+    handleMoodSubmit(randomInitialMood, false);
   }, []);
 
   const saveToHistory = (moodText) => {
@@ -49,7 +62,7 @@ export default function App() {
     }
   };
 
-  const handleMoodSubmit = async (mood) => {
+  const handleMoodSubmit = async (mood, shouldSaveHistory = true) => {
     setLoading(true);
     setError(null);
     setLastMood(mood);
@@ -68,7 +81,9 @@ export default function App() {
 
       const data = await response.json();
       setPlaylist(data);
-      saveToHistory(mood);
+      if (shouldSaveHistory) {
+        saveToHistory(mood);
+      }
     } catch (e) {
       console.error("Fetch playlist error:", e);
       setError(e.message || "Could not generate mood playlist. Please try again.");
