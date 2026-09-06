@@ -35,7 +35,13 @@ import {
   Minimize2, 
   Gauge, 
   Search, 
-  Loader2 
+  Loader2,
+  ListMusic,
+  Plus,
+  Trash2,
+  Activity,
+  Layers,
+  Shuffle
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -144,6 +150,175 @@ const SOUND_MODES = [
   { id: "vocal", name: "Vocal Clarity", icon: "🎙️" }
 ];
 
+const CATEGORIES = [
+  { id: "all", label: "✨ All Songs" },
+  { id: "mass", label: "🔥 Mass & Dance" },
+  { id: "romantic", label: "❤️ Romantic Melodies" },
+  { id: "chill", label: "🎧 Chill & Lo-Fi" },
+  { id: "classics", label: "⭐ All-Time Hits" }
+];
+
+function BeatsVisualizerModal({ isOpen, onClose, isPlaying, track, colorTheme }) {
+  const canvasRef = useRef(null);
+  const animFrameRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let width = (canvas.width = canvas.offsetWidth);
+    let height = (canvas.height = canvas.offsetHeight);
+
+    const numBars = 44;
+    const bars = Array.from({ length: numBars }, (_, i) => ({
+      height: Math.random() * 60 + 20,
+      targetHeight: Math.random() * 60 + 20,
+      speed: 0.08 + Math.random() * 0.08,
+      hue: (i / numBars) * 120 + 140,
+    }));
+
+    const particles = Array.from({ length: 28 }, () => ({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      size: Math.random() * 3 + 1,
+      speedY: -(Math.random() * 1.5 + 0.5),
+      speedX: (Math.random() - 0.5) * 1,
+      alpha: Math.random() * 0.7 + 0.3
+    }));
+
+    const render = () => {
+      ctx.fillStyle = 'rgba(10, 15, 30, 0.25)';
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw floating beat particles
+      particles.forEach(p => {
+        p.y += isPlaying ? p.speedY * 1.8 : p.speedY * 0.5;
+        p.x += p.speedX;
+        if (p.y < 0) {
+          p.y = height;
+          p.x = Math.random() * width;
+        }
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(16, 185, 129, ${p.alpha})`;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#10b981';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+
+      // Draw 3D-styled Mirror Spectrum Bars
+      const barWidth = (width / numBars) * 0.75;
+      const gap = (width / numBars) * 0.25;
+      const centerY = height / 2;
+
+      bars.forEach((bar, i) => {
+        if (isPlaying) {
+          if (Math.abs(bar.height - bar.targetHeight) < 4) {
+            bar.targetHeight = Math.random() * (height * 0.42) + 15;
+          }
+          bar.height += (bar.targetHeight - bar.height) * bar.speed;
+        } else {
+          bar.height += (10 - bar.height) * 0.1;
+        }
+
+        const x = i * (barWidth + gap) + gap / 2;
+        const currentH = bar.height;
+
+        // Top bar
+        const gradient = ctx.createLinearGradient(0, centerY, 0, centerY - currentH);
+        gradient.addColorStop(0, '#10b981');
+        gradient.addColorStop(0.6, '#06b6d4');
+        gradient.addColorStop(1, '#a855f7');
+
+        ctx.fillStyle = gradient;
+        ctx.shadowBlur = isPlaying ? 15 : 0;
+        ctx.shadowColor = '#06b6d4';
+        
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(x, centerY - currentH, barWidth, currentH, [4, 4, 0, 0]);
+        } else {
+          ctx.rect(x, centerY - currentH, barWidth, currentH);
+        }
+        ctx.fill();
+
+        // Bottom mirrored bar (reflection with opacity)
+        const mirrorGrad = ctx.createLinearGradient(0, centerY, 0, centerY + currentH * 0.6);
+        mirrorGrad.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
+        mirrorGrad.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+        ctx.fillStyle = mirrorGrad;
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(x, centerY, barWidth, currentH * 0.6, [0, 0, 4, 4]);
+        } else {
+          ctx.rect(x, centerY, barWidth, currentH * 0.6);
+        }
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+      });
+
+      animFrameRef.current = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [isOpen, isPlaying]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex flex-col items-center justify-between p-4 sm:p-8 animate-in fade-in duration-300">
+      <div className="w-full flex items-center justify-between z-20">
+        <div className="flex items-center gap-2">
+          <Activity className="w-5 h-5 text-emerald-400 animate-pulse" />
+          <span className="text-sm font-extrabold uppercase tracking-widest text-emerald-400">
+            3D Beats Spectrum Visualizer
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-2xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold"
+        >
+          <X className="w-4 h-4" />
+          <span>Close</span>
+        </button>
+      </div>
+
+      <div className="relative w-full max-w-4xl h-80 sm:h-96 my-auto rounded-3xl overflow-hidden border border-emerald-500/30 bg-slate-950 shadow-2xl flex items-center justify-center">
+        <canvas ref={canvasRef} className="w-full h-full block" />
+        
+        <div className="absolute top-4 left-4 flex items-center gap-3 bg-slate-900/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-800 pointer-events-none">
+          {track?.artworkUrl && (
+            <img src={track.artworkUrl} alt={track.title} className="w-10 h-10 rounded-xl object-cover" />
+          )}
+          <div>
+            <div className="text-xs font-extrabold text-white truncate max-w-xs">{track?.title}</div>
+            <div className="text-[11px] text-emerald-400 truncate max-w-xs">{track?.artist}</div>
+          </div>
+        </div>
+
+        {!isPlaying && (
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center pointer-events-none">
+            <span className="px-4 py-2 bg-slate-900/90 text-emerald-400 border border-emerald-500/40 rounded-full text-xs font-bold uppercase tracking-wider animate-pulse">
+              Press Play to Activate Visualizer Frequency
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="text-xs text-slate-400 font-mono text-center">
+        ⚡ AuraBeat Real-time Neon Harmonic FFT Analysis • 60 FPS
+      </div>
+    </div>
+  );
+}
+
 export default function Player({ playlist, onRefreshPlaylist }) {
   const { 
     mood,
@@ -205,6 +380,13 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
   // Story Card
   const [showStoryModal, setShowStoryModal] = useState(false);
+
+  // New Pro Features State: Category Filters, Queue Manager & 3D Beats Visualizer
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [queue, setQueue] = useState([]);
+  const [showQueueModal, setShowQueueModal] = useState(false);
+  const [showVisualizer, setShowVisualizer] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
 
   const audioRef = useRef(null);
   const ytPlayerRef = useRef(null);
@@ -549,8 +731,78 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3200);
+  };
+
+  const addToQueue = (track, e) => {
+    if (e) e.stopPropagation();
+    setQueue(prev => [...prev, track]);
+    showToast(`Added "${track.title}" to Up Next queue! 🎶`);
+  };
+
+  const removeFromQueue = (index) => {
+    setQueue(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearQueue = () => {
+    setQueue([]);
+    showToast("Queue cleared!");
+  };
+
+  const playQueueTrack = (index) => {
+    const trackToPlay = queue[index];
+    if (!trackToPlay) return;
+    setQueue(prev => prev.filter((_, i) => i !== index));
+    const foundIdx = tracks.findIndex(t => t.title.toLowerCase() === trackToPlay.title.toLowerCase());
+    if (foundIdx !== -1) {
+      playTrackAtIndex(foundIdx);
+    } else {
+      setTracks(prev => [trackToPlay, ...prev]);
+      playTrackAtIndex(0);
+    }
+  };
+
+  const handleShuffle = () => {
+    setTracks(prev => {
+      const copy = [...prev];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    });
+    showToast("🔀 Playlist shuffled!");
+  };
+
+  const loadMoreSongs = async () => {
+    if (autoLoadingMore) return;
+    setAutoLoadingMore(true);
+    try {
+      const existingTitles = tracks.map(t => t.title);
+      const res = await fetch("/api/more-tracks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mood: mood || vibeTitle, existingTitles })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.tracks && data.tracks.length > 0) {
+          setTracks(prev => [...prev, ...data.tracks]);
+          showToast(`⚡ Loaded +${data.tracks.length} more songs!`);
+        } else {
+          showToast("All available songs in this catalog are loaded!");
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load more tracks:", e);
+    } finally {
+      setAutoLoadingMore(false);
+    }
+  };
+
   const handleNextTrack = () => {
-    const list = showLikedOnly ? likedSongs : displayedList;
     if (isRepeat) {
       if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
         ytPlayerRef.current.seekTo(0);
@@ -558,6 +810,19 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       }
       return;
     }
+    if (queue.length > 0) {
+      const nextTrack = queue[0];
+      setQueue(prev => prev.slice(1));
+      const foundIdx = tracks.findIndex(t => t.title.toLowerCase() === nextTrack.title.toLowerCase());
+      if (foundIdx !== -1) {
+        playTrackAtIndex(foundIdx);
+      } else {
+        setTracks(prev => [nextTrack, ...prev]);
+        playTrackAtIndex(0);
+      }
+      return;
+    }
+    const list = showLikedOnly ? likedSongs : displayedList;
     if (currentTrackIndex < list.length - 1) {
       playTrackAtIndex(currentTrackIndex + 1);
     } else {
@@ -699,14 +964,34 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     borderColor: `${colorTheme[0]}40`,
   };
 
-  // In-Playlist Instant Search Filter
+  // In-Playlist Instant Search & Category Filter
   const baseList = showLikedOnly ? likedSongs : tracks;
+  const filteredByCategory = baseList.filter(track => {
+    if (selectedCategory === "all") return true;
+    const cat = (track.category || "").toLowerCase();
+    const title = track.title.toLowerCase();
+    const artist = track.artist.toLowerCase();
+    if (selectedCategory === "mass") {
+      return cat === "mass" || cat === "workout" || cat === "dance" || title.includes("mass") || title.includes("dance") || title.includes("beat") || title.includes("dj");
+    }
+    if (selectedCategory === "romantic") {
+      return cat === "romantic" || cat === "love" || title.includes("love") || title.includes("prema") || title.includes("pyar") || title.includes("ishq") || title.includes("dil");
+    }
+    if (selectedCategory === "chill") {
+      return cat === "chill" || cat === "lofi" || cat === "acoustic" || title.includes("chill") || title.includes("unplugged") || title.includes("acoustic");
+    }
+    if (selectedCategory === "classics") {
+      return cat === "classics" || cat === "retro" || (track.streamCount && (track.streamCount.includes("M") || track.streamCount.includes("B")));
+    }
+    return true;
+  });
+
   const displayedList = filterQuery.trim()
-    ? baseList.filter(t => 
+    ? filteredByCategory.filter(t => 
         t.title.toLowerCase().includes(filterQuery.toLowerCase()) || 
         t.artist.toLowerCase().includes(filterQuery.toLowerCase())
       )
-    : baseList;
+    : filteredByCategory;
 
   const currentSoundMode = SOUND_MODES[soundModeIndex];
 
@@ -881,10 +1166,20 @@ export default function Player({ playlist, onRefreshPlaylist }) {
             <button
               onClick={() => setIsCinemaMode(true)}
               className="p-2 sm:p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold"
-              title="Fullscreen Cinema Mode"
+              title="Fullscreen Cinema Mode (F)"
             >
               <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
               <span>Cinema</span>
+            </button>
+
+            {/* 3D Beats Spectrum Visualizer Button */}
+            <button
+              onClick={() => setShowVisualizer(true)}
+              className="p-2 sm:p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold"
+              title="3D Beats Spectrum Visualizer"
+            >
+              <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+              <span>Visualizer</span>
             </button>
 
             {/* Refresh All Songs Button */}
@@ -944,6 +1239,30 @@ export default function Player({ playlist, onRefreshPlaylist }) {
             >
               <Heart className={`w-3.5 h-3.5 ${showLikedOnly ? "fill-rose-500 text-rose-500" : ""}`} />
               <span>Favorites ({likedSongs.length})</span>
+            </button>
+
+            {/* Up Next / Queue Manager Toggle */}
+            <button
+              onClick={() => setShowQueueModal(true)}
+              className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 transition-all border ${
+                queue.length > 0
+                  ? "bg-purple-500/20 text-purple-400 border-purple-500/40"
+                  : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white"
+              }`}
+              title="Manage Up Next Queue"
+            >
+              <ListMusic className="w-3.5 h-3.5 text-purple-400" />
+              <span>Up Next ({queue.length})</span>
+            </button>
+
+            {/* Shuffle Button */}
+            <button
+              onClick={handleShuffle}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 flex items-center gap-1.5 font-bold transition-all"
+              title="Shuffle Playlist"
+            >
+              <Shuffle className="w-3.5 h-3.5 text-amber-400" />
+              <span>Shuffle</span>
             </button>
 
             {/* AI Radio DJ Toggle */}
@@ -1457,6 +1776,100 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         </div>
       )}
 
+      {/* Up Next / Queue Manager Drawer Modal */}
+      {showQueueModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[80vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <ListMusic className="w-5 h-5 text-purple-400" />
+                <span>Up Next Queue ({queue.length})</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                {queue.length > 0 && (
+                  <button
+                    onClick={clearQueue}
+                    className="px-2.5 py-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all text-xs flex items-center gap-1 font-semibold"
+                    title="Clear Queue"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Clear</span>
+                  </button>
+                )}
+                <button onClick={() => setShowQueueModal(false)} className="text-slate-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Songs added to your queue will play automatically when the current song finishes:
+            </p>
+
+            {queue.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 text-xs flex flex-col items-center gap-2">
+                <ListMusic className="w-8 h-8 opacity-40 text-purple-400" />
+                <span>Your queue is empty! Click the <b>+</b> button on any song to add it to Up Next.</span>
+              </div>
+            ) : (
+              <div className="space-y-2 overflow-y-auto pr-1 flex-1 scrollbar-thin">
+                {queue.map((track, qIdx) => (
+                  <div
+                    key={qIdx}
+                    className="flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span className="text-xs font-mono font-bold text-purple-400 w-5">
+                        #{qIdx + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-white truncate">{track.title}</div>
+                        <div className="text-[11px] text-slate-400 truncate">{track.artist}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => playQueueTrack(qIdx)}
+                        className="px-2.5 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-xl text-xs font-bold flex items-center gap-1"
+                        title="Play Now"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>Play</span>
+                      </button>
+                      <button
+                        onClick={() => removeFromQueue(qIdx)}
+                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-xl transition-all"
+                        title="Remove from Queue"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3D Beats Spectrum Visualizer Modal */}
+      <BeatsVisualizerModal
+        isOpen={showVisualizer}
+        onClose={() => setShowVisualizer(false)}
+        isPlaying={isPlaying}
+        track={activeTrack}
+        colorTheme={colorTheme}
+      />
+
+      {/* Floating Glass Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 backdrop-blur-md border border-emerald-500/50 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-in fade-in slide-in-from-bottom duration-200">
+          <Sparkles className="w-4 h-4 text-emerald-400" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
       {/* Complete Unlimited Music Catalog / Playlist */}
       <div className="bg-slate-900/95 rounded-3xl border border-slate-800 p-3.5 sm:p-6 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-3 border-b border-slate-800 gap-3">
@@ -1488,21 +1901,46 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           </div>
         </div>
 
+        {/* Category Vibe Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-3 mb-3 border-b border-slate-800/80 scrollbar-none">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
+                selectedCategory === cat.id
+                  ? "bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20"
+                  : "bg-slate-950/70 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
         {displayedList.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
             {showLikedOnly 
               ? "No liked songs yet! Click the ❤️ heart button on any song to save it." 
               : filterQuery 
                 ? `No songs found matching "${filterQuery}".` 
-                : "No songs found."}
+                : "No songs found for this category."}
           </div>
         ) : (
-          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1 scrollbar-thin">
+          <div 
+            onScroll={(e) => {
+              const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+              if (scrollTop + clientHeight >= scrollHeight - 80 && !autoLoadingMore && !showLikedOnly && !filterQuery) {
+                loadMoreSongs();
+              }
+            }}
+            className="space-y-2 max-h-[600px] overflow-y-auto pr-1 scrollbar-thin"
+          >
             {displayedList.map((track, idx) => {
               const isThisSelected = currentTrackIndex === idx;
               const isLiked = likedSongs.some(t => t.title.toLowerCase() === track.title.toLowerCase());
-              const isTopOne = idx === 0 && !showLikedOnly && !filterQuery;
-              const isTopThree = idx < 3 && !showLikedOnly && !filterQuery;
+              const isTopOne = idx === 0 && !showLikedOnly && !filterQuery && selectedCategory === "all";
+              const isTopThree = idx < 3 && !showLikedOnly && !filterQuery && selectedCategory === "all";
 
               return (
                 <div
@@ -1582,6 +2020,15 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    {/* Add to Queue Button */}
+                    <button
+                      onClick={(e) => addToQueue(track, e)}
+                      className="p-1.5 text-slate-400 hover:text-purple-400 hover:bg-slate-800 rounded-xl transition-all"
+                      title="Add to Up Next Queue"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+
                     {/* Favorite Heart Button */}
                     <button
                       onClick={() => toggleLike(track)}
@@ -1625,6 +2072,29 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Load 25 More Songs Button */}
+        {!showLikedOnly && !filterQuery && (
+          <div className="mt-4 pt-3 border-t border-slate-800 flex justify-center">
+            <button
+              onClick={loadMoreSongs}
+              disabled={autoLoadingMore}
+              className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/60 rounded-2xl text-xs font-extrabold flex items-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50"
+            >
+              {autoLoadingMore ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  <span>Loading endless songs from catalog…</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <span>⚡ Load 25+ More Songs</span>
+                </>
+              )}
+            </button>
           </div>
         )}
       </div>

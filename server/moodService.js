@@ -616,18 +616,21 @@ async function getMoreTracks(mood, existingTitles = []) {
   if (detectedLang && SONG_DATABASE[detectedLang]) {
     const unplayed = SONG_DATABASE[detectedLang].filter(s => !isDuplicate(s.title, normalizedExisting));
     if (unplayed.length > 0) {
-      return enrichTracksWithRealAudio(unplayed.slice(0, 15));
+      return enrichTracksWithRealAudio(unplayed.slice(0, 20));
     }
+    // Infinite stream: Return shuffled regional gems
+    const reshuffled = shuffleArray(SONG_DATABASE[detectedLang]).slice(0, 15);
+    return enrichTracksWithRealAudio(reshuffled);
   }
 
-  const queries = [mood, `${mood} hits`, 'top trending songs'];
+  const queries = [mood, `${mood} hits`, 'top trending songs', 'viral music 2024'];
   const randomQuery = queries[Math.floor(Math.random() * queries.length)];
   const liveResults = await searchLiveMusicCatalog(randomQuery, 'IN', 30);
   const unplayed = liveResults.filter(s => !isDuplicate(s.title, normalizedExisting));
 
   if (unplayed.length > 0) {
-    const enriched = await enrichTracksWithRealAudio(unplayed.slice(0, 15));
-    return enriched.filter(t => !isDuplicate(t.title, normalizedExisting));
+    const enriched = await enrichTracksWithRealAudio(unplayed.slice(0, 20));
+    return enriched;
   }
 
   return [];
