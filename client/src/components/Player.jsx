@@ -523,7 +523,17 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   }, [isPlaying, currentTime, currentTrackIndex, isMuted]);
 
   useEffect(() => {
-    setTracks(initialTracks);
+    // Strictly deduplicate incoming tracks to ensure zero duplicates
+    const seen = new Set();
+    const unique = (initialTracks || []).filter(t => {
+      if (!t || !t.title) return false;
+      const k = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+
+    setTracks(unique);
     setCurrentTrackIndex(0);
     setIsPlaying(false);
     setCurrentTime(0);
@@ -1871,12 +1881,13 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       )}
 
       {/* Complete Unlimited Music Catalog / Playlist */}
-      <div className="bg-slate-900/95 rounded-3xl border border-slate-800 p-3.5 sm:p-6 shadow-xl">
+      <div className="bg-slate-900/95 rounded-3xl border border-slate-800 p-4 sm:p-6 shadow-xl">
+        {/* Playlist Header & Search */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-3 border-b border-slate-800 gap-3">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             <h3 className="text-sm sm:text-base font-bold text-white">
-              {showLikedOnly ? "Liked Songs" : "Unlimited Song Library"} ({displayedList.length} Tracks)
+              {showLikedOnly ? "Liked Songs" : "All Songs"} ({displayedList.length} Tracks)
             </h3>
           </div>
           
@@ -1886,7 +1897,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               type="text"
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder="Filter songs in this playlist..."
+              placeholder="Search in this playlist..."
               className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
             />
             <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
@@ -1919,7 +1930,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         </div>
 
         {displayedList.length === 0 ? (
-          <div className="py-8 text-center text-slate-400 text-xs">
+          <div className="py-12 text-center text-slate-400 text-xs">
             {showLikedOnly 
               ? "No liked songs yet! Click the ❤️ heart button on any song to save it." 
               : filterQuery 
@@ -1927,15 +1938,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 : "No songs found for this category."}
           </div>
         ) : (
-          <div 
-            onScroll={(e) => {
-              const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
-              if (scrollTop + clientHeight >= scrollHeight - 80 && !autoLoadingMore && !showLikedOnly && !filterQuery) {
-                loadMoreSongs();
-              }
-            }}
-            className="space-y-2 max-h-[600px] overflow-y-auto pr-1 scrollbar-thin"
-          >
+          <div className="space-y-2 max-h-[640px] overflow-y-auto pr-1 scrollbar-thin">
             {displayedList.map((track, idx) => {
               const isThisSelected = currentTrackIndex === idx;
               const isLiked = likedSongs.some(t => t.title.toLowerCase() === track.title.toLowerCase());
@@ -1946,17 +1949,29 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 <div
                   key={idx}
                   onClick={() => playTrackAtIndex(idx)}
-                  className={`group relative flex items-center justify-between gap-2.5 p-2.5 sm:p-3.5 rounded-2xl transition-all duration-150 border cursor-pointer ${
+                  className={`group relative flex items-center justify-between gap-3 p-2.5 sm:p-3 rounded-2xl transition-all duration-150 border cursor-pointer ${
                     isThisSelected
                       ? "bg-slate-800/95 border-emerald-500/70 shadow-md shadow-emerald-500/10"
                       : isTopOne
-                        ? "bg-gradient-to-r from-amber-500/10 to-slate-950 border-amber-500/30 hover:border-amber-500/60"
-                        : "bg-slate-950/50 hover:bg-slate-800/60 border-slate-800/70 hover:border-slate-700"
+                        ? "bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-950 border-amber-500/30 hover:border-amber-500/60"
+                        : "bg-slate-950/60 hover:bg-slate-800/60 border-slate-800/80 hover:border-slate-700"
                   }`}
                 >
-                  {/* Album Art & Song Details */}
-                  <div className="flex items-center gap-2.5 sm:gap-3.5 flex-1 min-w-0">
-                    <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 shadow">
+                  {/* Left: Track Number + Artwork + Song Details */}
+                  <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                    {/* Track Number Column */}
+                    <div className="w-6 sm:w-7 text-center font-mono text-xs font-bold flex-shrink-0">
+                      {isThisSelected && isPlaying ? (
+                        <span className="inline-block w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
+                      ) : (
+                        <span className={isThisSelected ? "text-emerald-400" : isTopOne ? "text-amber-400" : "text-slate-500 group-hover:text-slate-300"}>
+                          {idx + 1 < 10 ? `0${idx + 1}` : idx + 1}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Artwork Thumbnail */}
+                    <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 shadow-sm">
                       {track.artworkUrl ? (
                         <img 
                           src={track.artworkUrl} 
@@ -1984,20 +1999,22 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                       </div>
                     </div>
 
-                    {/* Song Title, Ranking & Stream Count */}
-                    <div className="flex-1 min-w-0 pr-1">
+                    {/* Song Title, Artist & Ranking */}
+                    <div className="flex-1 min-w-0 pr-2">
                       <div className="flex items-center gap-1.5">
                         {isTopOne && (
-                          <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black rounded text-[9px] uppercase tracking-wider flex items-center gap-0.5">
+                          <span className="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black rounded text-[9px] uppercase tracking-wider flex-shrink-0 flex items-center gap-0.5">
                             <FireIcon className="w-2.5 h-2.5 fill-current" /> #1 Hit
                           </span>
                         )}
                         {isTopThree && !isTopOne && (
-                          <span className="px-1.5 py-0.2 bg-slate-800 text-amber-300 font-bold border border-amber-500/30 rounded text-[9px]">
+                          <span className="px-1.5 py-0.2 bg-slate-800 text-amber-300 font-bold border border-amber-500/30 rounded text-[9px] flex-shrink-0">
                             Top {idx + 1}
                           </span>
                         )}
-                        <h4 className={`text-xs sm:text-sm font-bold truncate leading-tight ${isThisSelected ? "text-emerald-400 font-extrabold" : "text-white"}`}>
+                        <h4 className={`text-xs sm:text-sm font-bold truncate leading-snug ${
+                          isThisSelected ? "text-emerald-400 font-extrabold" : "text-white"
+                        }`}>
                           {track.title}
                         </h4>
                       </div>
@@ -2005,20 +2022,20 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-400 truncate mt-0.5">
                         <span className="font-medium text-slate-300 truncate">{track.artist}</span>
                         {track.streamCount && (
-                          <span className="font-mono text-amber-400/90 text-[10px] flex-shrink-0 font-semibold">
+                          <span className="font-mono text-amber-400/90 text-[10px] flex-shrink-0 font-semibold hidden xs:inline">
                             • {track.streamCount}
-                          </span>
-                        )}
-                        {track.duration && (
-                          <span className="font-mono text-slate-500 text-[10px] flex-shrink-0">
-                            • {track.duration}
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
+                  {/* Center-Right: Song Duration */}
+                  <div className="hidden sm:block text-right font-mono text-xs text-slate-400 w-12 flex-shrink-0">
+                    {track.duration || "3:30"}
+                  </div>
+
+                  {/* Right: Action Buttons Group */}
                   <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
                     {/* Add to Queue Button */}
                     <button
@@ -2033,13 +2050,14 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                     <button
                       onClick={() => toggleLike(track)}
                       className={`p-1.5 rounded-xl transition-all ${
-                        isLiked ? "text-rose-500" : "text-slate-500 hover:text-slate-300"
+                        isLiked ? "text-rose-500" : "text-slate-400 hover:text-slate-200"
                       }`}
                       title={isLiked ? "Unlike" : "Like"}
                     >
                       <Heart className={`w-4 h-4 ${isLiked ? "fill-rose-500" : ""}`} />
                     </button>
 
+                    {/* Direct Play/Playing Button */}
                     <button
                       onClick={() => {
                         if (isThisSelected) {
@@ -2050,21 +2068,22 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                       }}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
                         isThisSelected && isPlaying
-                          ? "bg-emerald-500 text-slate-950 shadow"
+                          ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
                           : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
                       }`}
                       title="Play Full Song"
                     >
                       {isThisSelected && isPlaying ? <Pause className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
-                      <span>{isThisSelected && isPlaying ? "Playing" : "Play"}</span>
+                      <span className="hidden xs:inline">{isThisSelected && isPlaying ? "Playing" : "Play"}</span>
                     </button>
 
+                    {/* Spotify Link */}
                     <a
                       href={track.spotifyUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       title="Open on Spotify"
-                      className="p-1.5 sm:p-2 text-slate-400 hover:text-[#1DB954] hover:bg-slate-800 rounded-xl transition-all"
+                      className="p-1.5 sm:p-2 text-slate-400 hover:text-[#1DB954] hover:bg-slate-800 rounded-xl transition-all hidden sm:flex items-center justify-center"
                     >
                       <SpotifyIcon className="w-3.5 h-3.5" />
                     </a>
@@ -2072,29 +2091,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Load 25 More Songs Button */}
-        {!showLikedOnly && !filterQuery && (
-          <div className="mt-4 pt-3 border-t border-slate-800 flex justify-center">
-            <button
-              onClick={loadMoreSongs}
-              disabled={autoLoadingMore}
-              className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/60 rounded-2xl text-xs font-extrabold flex items-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50"
-            >
-              {autoLoadingMore ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                  <span>Loading endless songs from catalog…</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4 text-amber-400" />
-                  <span>⚡ Load 25+ More Songs</span>
-                </>
-              )}
-            </button>
           </div>
         )}
       </div>
