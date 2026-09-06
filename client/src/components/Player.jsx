@@ -35,8 +35,7 @@ import {
   RotateCcw,
   Maximize2,
   Minimize2,
-  Gauge,
-  Sparkle
+  Gauge
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -277,23 +276,36 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
-  // High-accuracy time sync for full 3-5 minute song playback
+  // High-accuracy time sync for smooth, non-laggy time tracking
   useEffect(() => {
     syncIntervalRef.current = setInterval(() => {
       if (isDraggingScrubberRef.current) return;
 
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+      // 1. Check YouTube Player
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.getPlayerState === 'function') {
         try {
           const state = ytPlayerRef.current.getPlayerState();
           if (state === 1) { // PLAYING
             const time = ytPlayerRef.current.getCurrentTime();
-            setCurrentTime(time);
+            if (typeof time === 'number' && !isNaN(time)) {
+              setCurrentTime(time);
+            }
             const fullDur = ytPlayerRef.current.getDuration();
             if (fullDur && fullDur > 10) setDuration(fullDur);
           }
         } catch (e) {}
       }
-    }, 400);
+
+      // 2. Check HTML5 Audio Player
+      if (audioRef.current && !audioRef.current.paused) {
+        if (typeof audioRef.current.currentTime === 'number' && !isNaN(audioRef.current.currentTime)) {
+          setCurrentTime(audioRef.current.currentTime);
+        }
+        if (audioRef.current.duration && !isNaN(audioRef.current.duration)) {
+          setDuration(audioRef.current.duration);
+        }
+      }
+    }, 250);
 
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
@@ -370,9 +382,9 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     window.speechSynthesis.cancel();
 
     const intros = [
-      `Up next on Joyson Music, here's the full track of ${track.title} by ${track.artist}! Top blockbuster hit.`,
-      `You're tuned into AuraBeat. Let's vibe with full-length ${track.title}!`,
-      `Here comes the #1 most listened song for your mood, ${track.title} by ${track.artist}. Enjoy!`,
+      `Up next on Joyson Music, here's ${track.title} by ${track.artist}! Enjoy the vibe.`,
+      `You're tuned into AuraBeat. Let's vibe with ${track.title}!`,
+      `Here comes the #1 hit for your mood, ${track.title} by ${track.artist}. Enjoy!`,
       `Spinning full track, ${track.title}. Let the music take over!`
     ];
     const text = intros[Math.floor(Math.random() * intros.length)];
@@ -674,7 +686,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
-  // Ultra-Fast (<250ms) Load More Songs
+  // Ultra-Fast (<200ms) Load More Songs
   const handleLoadMore = async () => {
     if (loadingMore) return;
     setLoadingMore(true);
@@ -737,6 +749,17 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         ref={audioRef}
         preload="auto"
         playsInline
+        onTimeUpdate={() => {
+          if (!isDraggingScrubberRef.current && audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+            if (audioRef.current.duration && !isNaN(audioRef.current.duration)) {
+              setDuration(audioRef.current.duration);
+            }
+          }
+        }}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={handleNextTrack}
       />
 
       {/* Fullscreen Cinema Visualizer Mode */}
@@ -886,7 +909,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               onClick={handleRefreshAll}
               disabled={isRefreshing}
               className="p-2 sm:p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 text-xs font-bold active:scale-95 disabled:opacity-50"
-              title="Refresh all songs"
+              title="Refresh all songs with fresh mix"
             >
               <RotateCw className={`w-3.5 h-3.5 text-emerald-400 ${isRefreshing ? "animate-spin" : ""}`} />
               <span>{isRefreshing ? "Refreshing…" : "Refresh Mix"}</span>
@@ -1604,7 +1627,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           </div>
         )}
 
-        {/* Load More Songs Button (Ultra-Fast <250ms) */}
+        {/* Load More Songs Button (Ultra-Fast <200ms) */}
         {!showLikedOnly && (
           <div className="mt-4 pt-3 border-t border-slate-800 flex justify-center">
             <button

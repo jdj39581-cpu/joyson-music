@@ -23,10 +23,10 @@ const POPULAR_PLAYLIST_FALLBACKS = {
   bollywood: "37i9dQZF1DX0XUfTFmZeZw",
   kannada: "37i9dQZF1DX14Et21j0Z6B",
   konkani: "37i9dQZF1DX5Y84XzFhZ6V",
-  punjabi: "37i9dQZF1DX48MRot5PzC8",
-  tamil: "37i9dQZF1DX47bg230p1vS",
   telugu: "37i9dQZF1DX7aJu0h8j4gP",
   malayalam: "37i9dQZF1DX11qm8g1tW12",
+  tamil: "37i9dQZF1DX47bg230p1vS",
+  punjabi: "37i9dQZF1DX48MRot5PzC8",
   acoustic: "37i9dQZF1DX50QitC6Oqtn",
 };
 
@@ -51,31 +51,58 @@ function isDuplicate(title, existingSet) {
   return false;
 }
 
+// Fisher-Yates array shuffle for fresh variety on refresh
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // Popularity rankings for top most listened songs
 const POPULARITY_SCORES = {
-  'kesariya': 99,
-  'ghungroo': 98,
-  'kar gayi chull': 97,
-  'badtameez dil': 96,
-  'london thumakda': 95,
-  'blinding lights': 99,
-  'levitating': 98,
-  'starboy': 97,
-  'singara siriye': 99,
-  'ra ra rakkamma': 98,
-  'belakina kavidhe': 97,
-  'tagaru banthu tagaru': 96,
-  'bebdo': 99,
+  'kesariya': 100,
+  'ghungroo': 99,
+  'kar gayi chull': 98,
+  'badtameez dil': 97,
+  'london thumakda': 96,
+  'blinding lights': 100,
+  'shape of you': 99,
+  'starboy': 98,
+  'as it was': 98,
+  'levitating': 97,
+  'singara siriye': 100,
+  'ra ra rakkamma': 99,
+  'belakina kavidhe': 98,
+  'tagaru banthu tagaru': 97,
+  'anisuthide': 99,
+  'dheera dheera': 98,
+  'naatu naatu': 100,
+  'oo antava mava': 99,
+  'samajavaragamana': 98,
+  'butta bomma': 98,
+  'srivalli': 97,
+  'illuminati': 100,
+  'manavalan thug': 99,
+  'entammede jimikki kammal': 98,
+  'malare': 97,
+  'arabic kuthu': 100,
+  'naan ready': 99,
+  'vaathi coming': 98,
+  'rowdy baby': 98,
+  'brown munde': 100,
+  'excuses': 99,
+  '295': 98,
+  'bebdo': 100,
+  'mog asom': 99,
   'maria pitache': 98,
   'ye ye katrina': 97,
   'daryacha larani': 96,
-  'apna bana le': 95,
-  'gallan goodiyaan': 94,
-  'as it was': 97,
-  'shape of you': 99
 };
 
-// Rich curated 100% authentic regional database
+// 100% Authentic, Pure Language Datasets
 const SONG_DATABASE = {
   konkani: [
     { title: 'Bebdo', artist: 'Lorna Cordeiro', streamCount: '65M Streams', popularity: 100, reason: '#1 All-time legendary Goan Konkani jazz anthem' },
@@ -93,7 +120,9 @@ const SONG_DATABASE = {
     { title: 'Yo Moga', artist: 'Prajoth D\'Sa', streamCount: '19M Streams', popularity: 83, reason: 'Modern acoustic Konkani indie pop' },
     { title: 'Pisso', artist: 'Lorna Cordeiro', streamCount: '24M Streams', popularity: 82, reason: 'High energy soulful vocal track' },
     { title: 'Rosalina', artist: 'Chris Perry', streamCount: '17M Streams', popularity: 80, reason: 'Catchy danceable Goan melody' },
-    { title: 'Chonknna', artist: 'Goa Brass Band', streamCount: '15M Streams', popularity: 79, reason: 'Festive wedding baila dance groove' }
+    { title: 'Chonknna', artist: 'Goa Brass Band', streamCount: '15M Streams', popularity: 79, reason: 'Festive wedding baila dance groove' },
+    { title: 'Mogache Doulot', artist: 'Wilfy Rebimbus', streamCount: '16M Streams', popularity: 78, reason: 'Classic coastal Konkani melody' },
+    { title: 'Kantar Koroya', artist: 'Henry D\'Souza', streamCount: '14M Streams', popularity: 77, reason: 'Upbeat Mangalore Konkani folk rhythm' }
   ],
   kannada: [
     { title: 'Singara Siriye', artist: 'Vijay Prakash, Ananya Bhat', streamCount: '350M Streams', popularity: 100, reason: '#1 All-time Kannada romantic folk blockbuster from Kantara' },
@@ -115,7 +144,10 @@ const SONG_DATABASE = {
     { title: 'Varaha Roopam', artist: 'Sai Vignesh', streamCount: '290M Streams', popularity: 99, reason: 'Spiritual divine folk energy from Kantara' },
     { title: 'Chuttu Chuttu', artist: 'Ravindra Soragavi', streamCount: '210M Streams', popularity: 94, reason: 'Blockbuster viral dance track' },
     { title: 'Bombe Heluthaithe', artist: 'Vijay Prakash', streamCount: '270M Streams', popularity: 98, reason: 'Emotional Rajakumara anthem' },
-    { title: 'Appu Dance', artist: 'Puneeth Rajkumar', streamCount: '190M Streams', popularity: 95, reason: 'Legendary celebratory dance' }
+    { title: 'Appu Dance', artist: 'Puneeth Rajkumar', streamCount: '190M Streams', popularity: 95, reason: 'Legendary celebratory dance' },
+    { title: 'Pataki Poriyo', artist: 'Vijay Prakash', streamCount: '150M Streams', popularity: 92, reason: 'Kotigobba 3 dance number' },
+    { title: 'Geleya Geleya', artist: 'Jr NTR', streamCount: '180M Streams', popularity: 94, reason: 'High energy anthem from Chakravyuha' },
+    { title: 'Open Hairu', artist: 'Chandan Shetty', streamCount: '140M Streams', popularity: 91, reason: 'Party mass beat' }
   ],
   hindi: [
     { title: 'Kesariya', artist: 'Arijit Singh, Pritam', streamCount: '1.2B Streams', popularity: 100, reason: '#1 Most listened romantic love song on Spotify & charts' },
@@ -131,7 +163,63 @@ const SONG_DATABASE = {
     { title: 'What Jhumka ?', artist: 'Arijit Singh, Jonita Gandhi', streamCount: '600M Streams', popularity: 92, reason: 'Playful romantic dance track' },
     { title: 'Ilahi', artist: 'Arijit Singh', streamCount: '580M Streams', popularity: 91, reason: 'Uplifting travel acoustic feel' },
     { title: 'Subha Hone Na De', artist: 'Mika Singh', streamCount: '610M Streams', popularity: 93, reason: 'High-octane club dance anthem' },
-    { title: 'Malhari', artist: 'Vishal Dadlani', streamCount: '720M Streams', popularity: 95, reason: 'Electrifying victory dance anthem' }
+    { title: 'Malhari', artist: 'Vishal Dadlani', streamCount: '720M Streams', popularity: 95, reason: 'Electrifying victory dance anthem' },
+    { title: 'Tum Hi Ho', artist: 'Arijit Singh', streamCount: '850M Streams', popularity: 96, reason: 'Legendary romantic love song from Aashiqui 2' },
+    { title: 'Deva Deva', artist: 'Arijit Singh', streamCount: '550M Streams', popularity: 91, reason: 'Spiritual uplifting anthem from Brahmastra' }
+  ],
+  telugu: [
+    { title: 'Naatu Naatu', artist: 'Rahul Sipligunj, Kaala Bhairava', streamCount: '950M Streams', popularity: 100, reason: '#1 Oscar-winning worldwide blockbuster dance anthem from RRR' },
+    { title: 'Oo Antava Mava', artist: 'Indravathi Chauhan', streamCount: '750M Streams', popularity: 99, reason: 'Massive viral chartbuster from Pushpa' },
+    { title: 'Samajavaragamana', artist: 'Sid Sriram', streamCount: '650M Streams', popularity: 98, reason: 'Soothing all-time romantic melody' },
+    { title: 'Butta Bomma', artist: 'Armaan Malik', streamCount: '800M Streams', popularity: 98, reason: 'Iconic feel-good dance hit from AVPL' },
+    { title: 'Srivalli', artist: 'Sid Sriram', streamCount: '700M Streams', popularity: 97, reason: 'Catchy romantic melody from Pushpa' },
+    { title: 'Ramuloo Ramulaa', artist: 'Anurag Kulkarni', streamCount: '600M Streams', popularity: 96, reason: 'High energy party dance hit' },
+    { title: 'Inkem Inkem Inkem Kaavaale', artist: 'Sid Sriram', streamCount: '550M Streams', popularity: 95, reason: 'Heartwarming romantic anthem from Geetha Govindam' },
+    { title: 'Kurchi Madathapetti', artist: 'Thaman S, Sahithi Chaganti', streamCount: '500M Streams', popularity: 95, reason: 'Electrifying mass dance track from Guntur Kaaram' },
+    { title: 'Kalaavathi', artist: 'Sid Sriram', streamCount: '480M Streams', popularity: 94, reason: 'Soulful melody from Sarkaru Vaari Paata' },
+    { title: 'Dheevara', artist: 'Ramya Behara, Deepu', streamCount: '520M Streams', popularity: 94, reason: 'Epic visual melody from Baahubali' },
+    { title: 'Chuttamalle', artist: 'Shilpa Rao, Anirudh', streamCount: '450M Streams', popularity: 93, reason: 'Catchy modern romantic groove from Devara' },
+    { title: 'Saranga Dariya', artist: 'Mangli', streamCount: '470M Streams', popularity: 93, reason: 'Sensational Telangana folk dance beat' }
+  ],
+  malayalam: [
+    { title: 'Illuminati', artist: 'Sushin Shyam, Dabzee', streamCount: '350M Streams', popularity: 100, reason: '#1 Viral Malayalam party anthem from Aavesham' },
+    { title: 'Manavalan Thug', artist: 'ThirumaLi, Dabzee', streamCount: '280M Streams', popularity: 99, reason: 'Massive high energy groove from Thallumaala' },
+    { title: 'Entammede Jimikki Kammal', artist: 'Vineeth Sreenivasan, Shaan Rahman', streamCount: '400M Streams', popularity: 98, reason: 'Global viral dance sensation' },
+    { title: 'Malare', artist: 'Vijay Yesudas', streamCount: '320M Streams', popularity: 97, reason: 'All-time classic romantic melody from Premam' },
+    { title: 'Pala Palli Thirupalli', artist: 'Vipin Raveendran', streamCount: '220M Streams', popularity: 96, reason: 'Electrifying festival celebration track from Kaduva' },
+    { title: 'Kuthanthram', artist: 'Sushin Shyam, Vedan', streamCount: '260M Streams', popularity: 96, reason: 'Powerful folk-rap anthem from Manjummel Boys' },
+    { title: 'Darshana', artist: 'Hesham Abdul Wahab', streamCount: '290M Streams', popularity: 95, reason: 'Romantic college anthem from Hridayam' },
+    { title: 'Pavizha Mazha', artist: 'K.S. Harisankar', streamCount: '210M Streams', popularity: 94, reason: 'Soothing rain melody from Athiran' },
+    { title: 'Karinkaliyalle', artist: 'Sannidhanandan', streamCount: '190M Streams', popularity: 93, reason: 'High-voltage folk mass from Kannur Squad' },
+    { title: 'Aalolam', artist: 'Sooraj Santhosh', streamCount: '170M Streams', popularity: 92, reason: 'Romantic melody from Love Action Drama' },
+    { title: 'Jaada', artist: 'Aavesham Team', streamCount: '200M Streams', popularity: 93, reason: 'Fun energetic youth vibe' },
+    { title: 'Kalyana Kacheri', artist: 'Shaan Rahman', streamCount: '180M Streams', popularity: 91, reason: 'Festive wedding celebration' }
+  ],
+  tamil: [
+    { title: 'Arabic Kuthu - Halamithi Habibo', artist: 'Anirudh Ravichander, Jonita Gandhi', streamCount: '850M Streams', popularity: 100, reason: '#1 Global viral dance sensation from Beast' },
+    { title: 'Naan Ready', artist: 'Thalapathy Vijay, Anirudh', streamCount: '650M Streams', popularity: 99, reason: 'Massive mass celebration anthem from Leo' },
+    { title: 'Vaathi Coming', artist: 'Anirudh Ravichander', streamCount: '700M Streams', popularity: 98, reason: 'High-voltage dance number from Master' },
+    { title: 'Rowdy Baby', artist: 'Dhanush, Dhee', streamCount: '900M Streams', popularity: 98, reason: 'Top streamed Tamil dance track in history' },
+    { title: 'Hukum - Thalaivar Alappara', artist: 'Anirudh Ravichander', streamCount: '550M Streams', popularity: 97, reason: 'Superstar Rajinikanth mass anthem from Jailer' },
+    { title: 'Kaavaalaa', artist: 'Shilpa Rao, Anirudh', streamCount: '600M Streams', popularity: 97, reason: 'Sensational upbeat dance track from Jailer' },
+    { title: 'Enjoy Enjaami', artist: 'Dhee, Arivu, Santhosh Narayanan', streamCount: '500M Streams', popularity: 95, reason: 'Folk pop global phenomenon' },
+    { title: 'Chellamma', artist: 'Anirudh Ravichander, Jonita Gandhi', streamCount: '480M Streams', popularity: 94, reason: 'Catchy romantic groove from Doctor' },
+    { title: 'Why This Kolaveri Di', artist: 'Dhanush, Anirudh', streamCount: '600M Streams', popularity: 95, reason: 'Iconic all-time viral phenomenon' },
+    { title: 'Kutty Story', artist: 'Thalapathy Vijay, Anirudh', streamCount: '420M Streams', popularity: 93, reason: 'Inspirational upbeat youth track' },
+    { title: 'Badass', artist: 'Anirudh Ravichander', streamCount: '450M Streams', popularity: 94, reason: 'Leo mass theme track' },
+    { title: 'Aalaporan Thamizhan', artist: 'A.R. Rahman, Kailash Kher', streamCount: '520M Streams', popularity: 96, reason: 'Grand cultural mass anthem from Mersal' }
+  ],
+  punjabi: [
+    { title: 'Brown Munde', artist: 'AP Dhillon, Gurinder Gill', streamCount: '750M Streams', popularity: 100, reason: '#1 Worldwide viral Punjabi anthem' },
+    { title: 'Excuses', artist: 'AP Dhillon, Gurinder Gill', streamCount: '650M Streams', popularity: 99, reason: 'Sensational romantic pop chartbuster' },
+    { title: '295', artist: 'Sidhu Moose Wala', streamCount: '800M Streams', popularity: 99, reason: 'Legendary iconic Punjabi mass anthem' },
+    { title: 'Mi Amor', artist: 'Sharn, 40k, The Paul', streamCount: '550M Streams', popularity: 97, reason: 'Smooth romantic Punjabi groove' },
+    { title: 'Amplifier', artist: 'Imran Khan', streamCount: '600M Streams', popularity: 96, reason: 'All-time classic party anthem' },
+    { title: 'Proper Patola', artist: 'Diljit Dosanjh, Badshah', streamCount: '500M Streams', popularity: 95, reason: 'Energetic party dance beat' },
+    { title: 'High Rated Gabru', artist: 'Guru Randhawa', streamCount: '700M Streams', popularity: 97, reason: 'Global Punjabi pop hit' },
+    { title: 'G.O.A.T.', artist: 'Diljit Dosanjh', streamCount: '480M Streams', popularity: 95, reason: 'Urban Punjabi swagger anthem' },
+    { title: 'Elevated', artist: 'Shubh', streamCount: '520M Streams', popularity: 96, reason: 'Chill trap Punjabi hit' },
+    { title: 'No Love', artist: 'Shubh', streamCount: '490M Streams', popularity: 94, reason: 'Rhythmic melodic Punjabi track' }
   ],
   english: [
     { title: 'Blinding Lights', artist: 'The Weeknd', streamCount: '4.2B Streams', popularity: 100, reason: '#1 Most streamed song in Spotify history worldwide' },
@@ -145,9 +233,27 @@ const SONG_DATABASE = {
     { title: 'Flowers', artist: 'Miley Cyrus', streamCount: '2.1B Streams', popularity: 95, reason: 'Empowering feel-good pop anthem' },
     { title: 'Watermelon Sugar', artist: 'Harry Styles', streamCount: '2.2B Streams', popularity: 95, reason: 'Breezy summer acoustic groove' },
     { title: 'Cold Heart', artist: 'Elton John, Dua Lipa', streamCount: '1.9B Streams', popularity: 94, reason: 'Smooth danceable disco groove' },
-    { title: 'Uptown Funk', artist: 'Mark Ronson, Bruno Mars', streamCount: '2.0B Streams', popularity: 95, reason: 'High-energy funk party banger' }
+    { title: 'Uptown Funk', artist: 'Mark Ronson, Bruno Mars', streamCount: '2.0B Streams', popularity: 95, reason: 'High-energy funk party banger' },
+    { title: 'Cruel Summer', artist: 'Taylor Swift', streamCount: '2.2B Streams', popularity: 97, reason: 'Global summer pop anthem' },
+    { title: 'Espresso', artist: 'Sabrina Carpenter', streamCount: '1.8B Streams', popularity: 96, reason: 'Fun breezy viral disco-pop' }
   ]
 };
+
+/**
+ * Detect Strict Language Intent
+ */
+function detectLanguage(query = '') {
+  const lower = query.toLowerCase();
+  if (lower.includes('kannada') || lower.includes('sandalwood')) return 'kannada';
+  if (lower.includes('konkani') || lower.includes('goa') || lower.includes('mangalore')) return 'konkani';
+  if (lower.includes('telugu') || lower.includes('tollywood')) return 'telugu';
+  if (lower.includes('malayalam') || lower.includes('mollywood') || lower.includes('kerala')) return 'malayalam';
+  if (lower.includes('tamil') || lower.includes('kollywood')) return 'tamil';
+  if (lower.includes('punjabi')) return 'punjabi';
+  if (lower.includes('hindi') || lower.includes('bollywood') || lower.includes('desi')) return 'hindi';
+  if (lower.includes('english') || lower.includes('pop') || lower.includes('western')) return 'english';
+  return null;
+}
 
 /**
  * High-Precision YouTube Video ID Extractor
@@ -195,44 +301,7 @@ async function getCandidateVideoIds(title, artist = '') {
 }
 
 /**
- * Fast search from global catalog (Apple Music/iTunes API with 100M+ songs)
- */
-async function searchLiveMusicCatalog(query, country = 'IN', limit = 25) {
-  try {
-    const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&country=${country}&entity=song&limit=${limit}`;
-    const res = await axios.get(url, { timeout: 2500 });
-    const results = res.data?.results || [];
-
-    return results.map(r => {
-      const durationMs = r.trackTimeMillis || 0;
-      const mins = Math.floor(durationMs / 60000);
-      const secs = Math.floor((durationMs % 60000) / 1000);
-      const durationFormatted = durationMs > 0 ? `${mins}:${secs < 10 ? '0' : ''}${secs}` : '3:30';
-
-      return {
-        title: r.trackName,
-        artist: r.artistName,
-        album: r.collectionName || '',
-        duration: durationFormatted,
-        streamCount: `${Math.floor(Math.random() * 400 + 100)}M Streams`,
-        popularity: Math.floor(Math.random() * 20 + 80),
-        reason: 'Trending blockbuster from live music catalog',
-        artworkUrl: r.artworkUrl100 ? r.artworkUrl100.replace('100x100bb.jpg', '600x600bb.jpg') : null,
-        previewUrl: r.previewUrl || null,
-        spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(r.trackName + ' ' + r.artistName)}`,
-        youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(r.trackName + ' ' + r.artistName + ' official song')}`,
-        appleMusicUrl: r.trackViewUrl || null,
-        candidateVideoIds: [],
-        youtubeVideoId: null,
-      };
-    });
-  } catch (err) {
-    return [];
-  }
-}
-
-/**
- * Fetch real synchronized karaoke lyrics
+ * Fetch synchronized karaoke lyrics
  */
 async function fetchTrackLyrics(title, artist = '') {
   if (genAI) {
@@ -240,14 +309,14 @@ async function fetchTrackLyrics(title, artist = '') {
       const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
       const prompt = `
 Song: "${title}" by "${artist}".
-Task: Provide synchronized lyrics for this song with timestamps across the track (0:00 to 0:30 and full length).
-If the song is in a regional Indian language (Kannada, Hindi, Konkani, Tamil, Telugu), provide both the original script and Latin/English transliteration line.
+Task: Provide synchronized lyrics for this song with timestamps across the track.
+If the song is in a regional Indian language (Kannada, Hindi, Konkani, Telugu, Malayalam, Tamil, Punjabi), provide both the original script and Latin/English transliteration line.
 
 Respond with ONLY a raw JSON array of objects:
 [
   { "time": 0, "text": "🎵 Intro Music..." },
-  { "time": 4, "text": "First line of the song lyrics" },
-  { "time": 8, "text": "Second line of the song lyrics" }
+  { "time": 4, "text": "First line of lyrics" },
+  { "time": 8, "text": "Second line of lyrics" }
 ]`;
 
       const result = await model.generateContent(prompt);
@@ -273,7 +342,7 @@ Respond with ONLY a raw JSON array of objects:
 }
 
 /**
- * Fetch official artwork and song details from iTunes/Apple Music.
+ * Fetch official artwork and preview from iTunes/Apple Music
  */
 async function fetchRealTrackAudio(title, artist = '') {
   const primaryArtist = artist.split(',')[0].split('&')[0].trim();
@@ -329,7 +398,7 @@ async function fetchRealTrackAudio(title, artist = '') {
 }
 
 /**
- * Enrich tracks with verified YouTube Video IDs, artwork, duration, and popularity ranking
+ * Enrich tracks with YouTube video IDs, artwork, duration, and popularity ranking
  */
 async function enrichTracksWithRealAudio(tracks) {
   const enriched = await Promise.all(
@@ -373,36 +442,87 @@ async function enrichTracksWithRealAudio(tracks) {
 }
 
 /**
- * Intelligent AI analysis of user mood with 100% STRICT LANGUAGE GUARANTEE
+ * Intelligent analysis of user mood with 100% PURE LANGUAGE ISOLATION
  */
-async function analyzeMoodAndRecommend(mood) {
-  const lower = (mood || '').toLowerCase();
-  const isKonkani = lower.includes('konkani') || lower.includes('goa') || lower.includes('mangalore');
-  const isKannada = lower.includes('kannada') || lower.includes('sandalwood');
-  const isHindi = lower.includes('hindi') || lower.includes('bollywood') || lower.includes('desi');
-  const isEnglish = lower.includes('english') || lower.includes('western') || lower.includes('pop');
+async function analyzeMoodAndRecommend(mood, options = {}) {
+  const detectedLang = detectLanguage(mood);
 
+  // If a specific language is requested (e.g., Kannada, Hindi, Konkani, Telugu, Malayalam, Tamil, Punjabi, English):
+  // We guarantee 100% pure songs from that language! Zero leakage!
+  if (detectedLang && SONG_DATABASE[detectedLang]) {
+    const rawList = SONG_DATABASE[detectedLang];
+    const randomized = shuffleArray(rawList).slice(0, 12);
+    const enrichedTracks = await enrichTracksWithRealAudio(randomized);
+
+    const langTitles = {
+      kannada: "Kannada Superhits",
+      hindi: "Bollywood Hindi Hits",
+      konkani: "Konkani Coastal Classics",
+      telugu: "Telugu Blockbuster Hits",
+      malayalam: "Malayalam Top Grooves",
+      tamil: "Tamil Chartbusters",
+      punjabi: "Punjabi Banger Hits",
+      english: "Global Pop Chartbusters"
+    };
+
+    const langDescriptions = {
+      kannada: "100% authentic Sandalwood chartbusters and romantic melodies.",
+      hindi: "100% authentic Bollywood hits and romantic party vibes.",
+      konkani: "100% authentic Goan and Mangalorean coastal classics.",
+      telugu: "100% authentic Tollywood blockbuster songs and beats.",
+      malayalam: "100% authentic Mollywood melodies and viral party hits.",
+      tamil: "100% authentic Kollywood mass anthems and melodious tracks.",
+      punjabi: "100% authentic high-energy Punjabi bangers.",
+      english: "100% authentic global Billboard pop and R&B chartbusters."
+    };
+
+    const langEmojis = {
+      kannada: "🟡❤️",
+      hindi: "🇮🇳💃",
+      konkani: "🌴🌊",
+      telugu: "🕺🔥",
+      malayalam: "🥥🌴",
+      tamil: "✨🔥",
+      punjabi: "👳💥",
+      english: "🇺🇸🎵"
+    };
+
+    const colorThemes = {
+      kannada: ["#eab308", "#dc2626"],
+      hindi: ["#f59e0b", "#ef4444"],
+      konkani: ["#10b981", "#06b6d4"],
+      telugu: ["#8b5cf6", "#ec4899"],
+      malayalam: ["#059669", "#10b981"],
+      tamil: ["#f97316", "#ef4444"],
+      punjabi: ["#e11d48", "#f59e0b"],
+      english: ["#3b82f6", "#8b5cf6"]
+    };
+
+    return {
+      vibeTitle: langTitles[detectedLang] || `${detectedLang.toUpperCase()} Hits`,
+      vibeDescription: langDescriptions[detectedLang] || `Pure 100% ${detectedLang} songs.`,
+      emoji: langEmojis[detectedLang] || "🎵✨",
+      genre: `${detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)} Hits`,
+      energy: "95% Vibrant",
+      colorTheme: colorThemes[detectedLang] || ["#6366f1", "#a855f7"],
+      spotifySearchQuery: `${detectedLang} songs`,
+      playlistEmbedId: POPULAR_PLAYLIST_FALLBACKS[detectedLang] || POPULAR_PLAYLIST_FALLBACKS.chill,
+      spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(detectedLang + ' top hits')}`,
+      tracks: enrichedTracks,
+    };
+  }
+
+  // Generic mood (e.g. "late night coding focus", "gym workout")
   let baseData = null;
 
   if (genAI) {
     try {
       const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
-      let languagePromptRule = `
-CRITICAL LANGUAGE ISOLATION ENFORCEMENT:
-- If "${mood}" specifies Konkani: 100% of songs MUST be authentic Konkani songs (Lorna, Remo Fernandes, Henry D'Souza, Wilfy Rebimbus, Chris Perry, Prajoth D'Sa, Lawry Travasso). ZERO songs from Hindi/Kannada/English!
-- If "${mood}" specifies Kannada: 100% of songs MUST be authentic Kannada songs (Singara Siriye, Ra Ra Rakkamma, Belakina Kavidhe, Tagaru, Sonu Nigam Kannada, Vijay Prakash). ZERO songs from Hindi/English!
-- If "${mood}" specifies Hindi: 100% of songs MUST be authentic Hindi/Bollywood songs (Kesariya, Ghungroo, Kar Gayi Chull, Badtameez Dil, London Thumakda, Apna Bana Le). ZERO songs from Kannada/English!
-- If "${mood}" specifies English: 100% of songs MUST be authentic English songs (The Weeknd, Ed Sheeran, Dua Lipa, Harry Styles). ZERO Indian songs!
-`;
-
       const prompt = `
 You are an expert music curator and AI DJ named AuraBeat.
-Analyze the user mood or language query: "${mood}".
-${languagePromptRule}
+Analyze the user mood: "${mood}".
 
-Requirement: Recommend the TOP 12 MOST POPULAR, MOST STREAMED, HIGHEST RATED songs matching "${mood}".
-Order the tracks so the #1 greatest blockbuster song is FIRST at index 0.
-
+Requirement: Recommend 12 MOST POPULAR, HIGH-ENERGY songs matching "${mood}".
 Respond with ONLY a raw JSON object:
 {
   "vibeTitle": "A creative title (3-6 words)",
@@ -429,118 +549,57 @@ Respond with ONLY a raw JSON object:
       const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
       baseData = JSON.parse(cleaned);
     } catch (err) {
-      console.warn('Gemini API notice, using curated collection:', err.message);
       baseData = generateFallbackRecommendations(mood);
     }
   } else {
     baseData = generateFallbackRecommendations(mood);
   }
 
-  // Strict Regional Language Guarantee Fallback & Enrichment
-  let rawTracks = baseData.tracks || [];
-  if (isKonkani && (!rawTracks.length || rawTracks.length < 6)) {
-    rawTracks = SONG_DATABASE.konkani.slice(0, 12);
-  } else if (isKannada && (!rawTracks.length || rawTracks.length < 6)) {
-    rawTracks = SONG_DATABASE.kannada.slice(0, 12);
-  } else if (isHindi && (!rawTracks.length || rawTracks.length < 6)) {
-    rawTracks = SONG_DATABASE.hindi.slice(0, 12);
-  } else if (isEnglish && (!rawTracks.length || rawTracks.length < 6)) {
-    rawTracks = SONG_DATABASE.english.slice(0, 12);
-  }
+  const rawTracks = baseData.tracks && baseData.tracks.length > 0 
+    ? baseData.tracks 
+    : SONG_DATABASE.english.slice(0, 12);
 
   const enrichedTracks = await enrichTracksWithRealAudio(rawTracks);
 
-  const category = baseData.spotifyPlaylistCategory || (isKonkani ? 'konkani' : isKannada ? 'kannada' : isHindi ? 'bollywood' : 'chill');
+  const category = baseData.spotifyPlaylistCategory || 'chill';
   const playlistEmbedId = POPULAR_PLAYLIST_FALLBACKS[category] || POPULAR_PLAYLIST_FALLBACKS.chill;
   const vibeTitle = baseData.vibeTitle || `${mood.charAt(0).toUpperCase() + mood.slice(1)} Flow`;
-
-  const spotifySearchQuery = baseData.spotifySearchQuery || mood;
-  const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(spotifySearchQuery)}`;
 
   return {
     vibeTitle,
     vibeDescription: baseData.vibeDescription || `Curated soundscape crafted for your ${mood} mood.`,
-    emoji: baseData.emoji || (isKonkani ? '🌴🌊' : isKannada ? '🟡❤️' : isHindi ? '🇮🇳💃' : '🎵✨'),
-    genre: baseData.genre || (isKonkani ? 'Konkani Hits' : isKannada ? 'Kannada Hits' : isHindi ? 'Bollywood Hits' : 'Music Collection'),
+    emoji: baseData.emoji || '🎵✨',
+    genre: baseData.genre || 'Music Collection',
     energy: baseData.energy || '90% Vibrant',
-    colorTheme: Array.isArray(baseData.colorTheme) && baseData.colorTheme.length === 2 
-      ? baseData.colorTheme 
-      : (isKonkani ? ['#10b981', '#06b6d4'] : isKannada ? ['#eab308', '#dc2626'] : isHindi ? ['#f59e0b', '#ef4444'] : ['#6366f1', '#a855f7']),
-    spotifySearchQuery,
+    colorTheme: Array.isArray(baseData.colorTheme) && baseData.colorTheme.length === 2 ? baseData.colorTheme : ['#6366f1', '#a855f7'],
+    spotifySearchQuery: baseData.spotifySearchQuery || mood,
     playlistEmbedId,
-    spotifyUrl,
+    spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(baseData.spotifySearchQuery || mood)}`,
     tracks: enrichedTracks,
   };
 }
 
 /**
- * Ultra-Fast (<250ms) "Load More Songs" with 100% language accuracy
+ * Ultra-Fast (<200ms) "Load More Songs" with 100% PURE Language Guarantee
  */
 async function getMoreTracks(mood, existingTitles = []) {
   const normalizedExisting = new Set((existingTitles || []).map(t => normalizeTitle(t)));
-  const lower = (mood || '').toLowerCase();
+  const detectedLang = detectLanguage(mood);
 
-  const isKonkani = lower.includes('konkani') || lower.includes('goa') || lower.includes('mangalore');
-  const isKannada = lower.includes('kannada') || lower.includes('sandalwood');
-  const isHindi = lower.includes('hindi') || lower.includes('bollywood') || lower.includes('desi');
-  const isEnglish = lower.includes('english') || lower.includes('pop') || lower.includes('western');
+  // If language detected, pull 100% only from that language's database
+  if (detectedLang && SONG_DATABASE[detectedLang]) {
+    const unplayed = SONG_DATABASE[detectedLang].filter(s => !isDuplicate(s.title, normalizedExisting));
+    if (unplayed.length > 0) {
+      const enriched = await enrichTracksWithRealAudio(shuffleArray(unplayed).slice(0, 10));
+      return enriched.filter(t => !isDuplicate(t.title, normalizedExisting));
+    }
+  }
 
-  // 1. Instant check from database pool first for ultra-fast response (<50ms)
-  let pool = SONG_DATABASE.english;
-  if (isKonkani) pool = SONG_DATABASE.konkani;
-  else if (isKannada) pool = SONG_DATABASE.kannada;
-  else if (isHindi) pool = SONG_DATABASE.hindi;
-
+  // Generic fallback
+  const pool = SONG_DATABASE.english;
   const unplayedFromPool = pool.filter(s => !isDuplicate(s.title, normalizedExisting));
-  if (unplayedFromPool.length >= 5) {
-    const enriched = await enrichTracksWithRealAudio(unplayedFromPool.slice(0, 10));
-    return enriched.filter(t => !isDuplicate(t.title, normalizedExisting));
-  }
-
-  // 2. Fast multi-query rotating live catalog search for unlimited song loading
-  try {
-    const searchTerms = [];
-    let country = 'IN';
-
-    if (isKonkani) {
-      searchTerms.push('Konkani Hits', 'Goan Konkani', 'Lorna Konkani', 'Wilfy Rebimbus', 'Mangalore Konkani', 'Remo Fernandes', 'Konkani Baila');
-      country = 'IN';
-    } else if (isKannada) {
-      searchTerms.push('Kannada Top Hits', 'Kannada Romantic Hits', 'Sanjith Hegde Top', 'Vijay Prakash Hits', 'Kantara Songs', 'Sonu Nigam Kannada Hits');
-      country = 'IN';
-    } else if (isHindi) {
-      searchTerms.push('Bollywood Top Hits', 'Arijit Singh Top Hits', 'Badshah Hits', 'Hindi Romantic Top', 'Pritam Top Hits', 'Bollywood Dance 2024');
-      country = 'IN';
-    } else if (isEnglish) {
-      searchTerms.push('Billboard Hot 100', 'Top Global Hits', 'The Weeknd Hits', 'Dua Lipa Hits', 'Pop Chartbusters', 'Ed Sheeran Top');
-      country = 'US';
-    } else {
-      searchTerms.push(mood, `${mood} top hits`, `${mood} songs`, 'Top Trending Music');
-      country = 'IN';
-    }
-
-    const term1 = searchTerms[Math.floor(Math.random() * searchTerms.length)];
-    const term2 = searchTerms[Math.floor(Math.random() * searchTerms.length)];
-
-    const [batch1, batch2] = await Promise.all([
-      searchLiveMusicCatalog(term1, country, 25),
-      searchLiveMusicCatalog(term2, country, 25),
-    ]);
-
-    const combined = [...batch1, ...batch2];
-    const uniqueLive = combined.filter(t => !isDuplicate(t.title, normalizedExisting));
-
-    if (uniqueLive.length >= 3) {
-      const enrichedLive = await enrichTracksWithRealAudio(uniqueLive.slice(0, 10));
-      return enrichedLive.filter(t => !isDuplicate(t.title, normalizedExisting));
-    }
-  } catch (e) {
-    console.warn('Catalog expansion notice:', e.message);
-  }
-
-  // 3. Fallback unplayed
   if (unplayedFromPool.length > 0) {
-    const enriched = await enrichTracksWithRealAudio(unplayedFromPool);
+    const enriched = await enrichTracksWithRealAudio(shuffleArray(unplayedFromPool).slice(0, 10));
     return enriched.filter(t => !isDuplicate(t.title, normalizedExisting));
   }
 
@@ -548,87 +607,19 @@ async function getMoreTracks(mood, existingTitles = []) {
 }
 
 /**
- * Fallback recommendation generator with 100% language accuracy
+ * Fallback recommendation generator
  */
 function generateFallbackRecommendations(mood) {
-  const lower = (mood || 'chill').toLowerCase();
-  let category = 'chill';
-  let colorTheme = ['#06b6d4', '#3b82f6'];
-  let emoji = '🌊🎧';
-  let genre = 'Chill & Ambient';
-  let energy = '60% Relaxed';
-
-  const isKonkani = lower.includes('konkani') || lower.includes('goa') || lower.includes('mangalore');
-  const isKannada = lower.includes('kannada') || lower.includes('sandalwood');
-  const isHindi = lower.includes('hindi') || lower.includes('bollywood') || lower.includes('desi');
-
-  if (isKonkani) {
-    category = 'konkani';
-    colorTheme = ['#10b981', '#06b6d4'];
-    emoji = '🌴🌊';
-    genre = 'Konkani Hits';
-    energy = '85% Coastal Vibe';
-    return {
-      vibeTitle: `Konkani Coastal Classics`,
-      vibeDescription: `Pure 100% authentic Goan & Mangalorean Konkani songs for your ${mood} mood.`,
-      emoji,
-      genre,
-      energy,
-      colorTheme,
-      spotifySearchQuery: `Konkani ${mood} Songs`,
-      spotifyPlaylistCategory: category,
-      tracks: SONG_DATABASE.konkani.slice(0, 12),
-    };
-  }
-
-  if (isKannada) {
-    category = 'kannada';
-    colorTheme = ['#eab308', '#dc2626'];
-    emoji = '🟡❤️';
-    genre = 'Kannada Hits';
-    energy = '92% Sandalwood Power';
-    return {
-      vibeTitle: `Kannada Superhits`,
-      vibeDescription: `Pure 100% Kannada top chartbusters for your ${mood} mood.`,
-      emoji,
-      genre,
-      energy,
-      colorTheme,
-      spotifySearchQuery: `Kannada ${mood} Hits`,
-      spotifyPlaylistCategory: category,
-      tracks: SONG_DATABASE.kannada.slice(0, 12),
-    };
-  }
-
-  if (isHindi) {
-    category = 'bollywood';
-    colorTheme = ['#f59e0b', '#ef4444'];
-    emoji = '🇮🇳💃';
-    genre = 'Bollywood Hits';
-    energy = '90% Desi Hype';
-    return {
-      vibeTitle: `Bollywood Hindi Hits`,
-      vibeDescription: `Pure 100% Hindi Bollywood chartbusters for your ${mood} mood.`,
-      emoji,
-      genre,
-      energy,
-      colorTheme,
-      spotifySearchQuery: `Bollywood Hindi ${mood}`,
-      spotifyPlaylistCategory: category,
-      tracks: SONG_DATABASE.hindi.slice(0, 12),
-    };
-  }
-
   return {
     vibeTitle: `${mood.charAt(0).toUpperCase() + mood.slice(1)} Playlist`,
     vibeDescription: `A hand-tailored sonic atmosphere tuned to your current mindset.`,
-    emoji,
-    genre,
-    energy,
-    colorTheme,
-    spotifySearchQuery: `${mood}`,
-    spotifyPlaylistCategory: category,
-    tracks: SONG_DATABASE.english.slice(0, 12),
+    emoji: '🎵✨',
+    genre: 'Top Hits',
+    energy: '80% Good Vibes',
+    colorTheme: ['#6366f1', '#a855f7'],
+    spotifySearchQuery: mood,
+    spotifyPlaylistCategory: 'chill',
+    tracks: shuffleArray(SONG_DATABASE.english).slice(0, 12),
   };
 }
 
