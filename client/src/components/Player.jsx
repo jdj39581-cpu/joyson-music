@@ -799,10 +799,19 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       if (res.ok) {
         const data = await res.json();
         if (data.tracks && data.tracks.length > 0) {
-          setTracks(prev => [...prev, ...data.tracks]);
-          showToast(`⚡ Loaded +${data.tracks.length} more songs!`);
-        } else {
-          showToast("All available songs in this catalog are loaded!");
+          setTracks(prev => {
+            const existingKeys = new Set(prev.map(t => (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')));
+            const genuinelyNew = data.tracks.filter(t => {
+              const k = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              if (!k || existingKeys.has(k)) return false;
+              existingKeys.add(k);
+              return true;
+            });
+            if (genuinelyNew.length > 0) {
+              return [...prev, ...genuinelyNew];
+            }
+            return prev;
+          });
         }
       }
     } catch (e) {
@@ -1938,7 +1947,15 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 : "No songs found for this category."}
           </div>
         ) : (
-          <div className="space-y-2 max-h-[640px] overflow-y-auto pr-1 scrollbar-thin">
+          <div 
+            onScroll={(e) => {
+              const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+              if (scrollTop + clientHeight >= scrollHeight - 350 && !autoLoadingMore && !showLikedOnly && !filterQuery) {
+                loadMoreSongs();
+              }
+            }}
+            className="space-y-2 max-h-[640px] overflow-y-auto pr-1 scrollbar-thin"
+          >
             {displayedList.map((track, idx) => {
               const isThisSelected = currentTrackIndex === idx;
               const isLiked = likedSongs.some(t => t.title.toLowerCase() === track.title.toLowerCase());
@@ -2091,6 +2108,14 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 </div>
               );
             })}
+
+            {/* Seamless Infinite Continuous Streaming Pulse */}
+            {autoLoadingMore && (
+              <div className="py-4 flex items-center justify-center gap-2 text-xs text-emerald-400 font-bold animate-pulse bg-slate-950/40 rounded-2xl border border-emerald-500/20 my-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>✨ Streaming unlimited songs line-by-line continuously...</span>
+              </div>
+            )}
           </div>
         )}
       </div>

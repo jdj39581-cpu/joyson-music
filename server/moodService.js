@@ -744,29 +744,121 @@ function deduplicateTracks(trackList) {
   });
 }
 
+const EXTENDED_LANGUAGE_TOPICS = {
+  kannada: [
+    'Sanjith Hegde Kannada', 'Vijay Prakash Kannada', 'Sonu Nigam Kannada', 'Charan Raj Kannada',
+    'Chandan Shetty Kannada', 'Armaan Malik Kannada', 'Kantara Kannada', 'KGF Chapter 1 Kannada',
+    'KGF Chapter 2 Kannada', 'Vikrant Rona Kannada', 'Mungaru Male Kannada', 'Kirik Party Kannada',
+    'Gaalipata Kannada', 'Dia Kannada', 'Love Mocktail Kannada', 'Tagaru Kannada', 'Raajakumara Kannada',
+    'Bell Bottom Kannada', 'Googly Kannada', 'Sanju Weds Geetha Kannada', 'Chakravarthy Kannada',
+    'Roberrt Kannada', 'Yuvarathnaa Kannada', 'Badava Rascal Kannada', 'Paramathma Kannada',
+    'Jackie Kannada', 'Milana Kannada', 'Amruthadhare Kannada', 'Ulidavaru Kandanthe Kannada',
+    'Lucia Kannada', '777 Charlie Kannada', 'Kabzaa Kannada', 'Head Bush Kannada', 'Salaga Kannada',
+    'Kotigobba 3 Kannada', 'Pogaru Kannada', 'Krishnam Pranaya Sakhi Kannada', 'James Kannada',
+    'Rajesh Krishnan Kannada', 'Anuradha Bhat Kannada', 'S.P. Balasubrahmanyam Kannada hits',
+    'Vasuki Vaibhav Kannada', 'Santhosh Venky Kannada', 'V. Harikrishna Kannada hits',
+    'Arjun Janya Kannada hits', 'Gurukiran Kannada hits', 'Mano Murthy Kannada'
+  ],
+  hindi: [
+    'Arijit Singh Hindi', 'Pritam Bollywood', 'Badshah Hindi', 'Shreya Ghoshal Bollywood',
+    'Jubin Nautiyal Hindi', 'Sachin Jigar Bollywood', 'Atif Aslam Bollywood', 'Vishal Shekhar Hindi',
+    'A.R. Rahman Hindi', 'Amit Trivedi Hindi', 'Sunidhi Chauhan Hindi', 'Neha Kakkar Hindi',
+    'Armaan Malik Hindi', 'Mohit Chauhan Hindi', 'Sonu Nigam Bollywood', 'KK Bollywood hits',
+    'Shaan Bollywood hits', 'Ankit Tiwari Hindi', 'Darshan Raval Hindi', 'B Praak Hindi',
+    'Jasleen Royal Hindi', 'Guru Randhawa Hindi', 'YJHD songs', 'Brahmastra songs',
+    'Kabir Singh songs', 'Aashiqui 2 songs', 'Shershaah songs', 'Jawan songs', 'Pathaan songs',
+    'Animal Bollywood songs', 'Dunki songs', 'War songs', 'ADHM songs', 'Dilwale songs'
+  ],
+  konkani: [
+    'Lorna Goan Konkani', 'Remo Fernandes Goa', 'Henry D\'Souza Konkani', 'Wilfy Rebimbus Konkani',
+    'Chris Perry Konkani', 'Goan Baila Konkani', 'Prajoth D\'Sa Konkani', 'Melwyn Peris Konkani',
+    'Lawry Travasso Konkani', 'Oswald D\'Souza Konkani', 'Nephie Rod Konkani', 'Kevin Misquith Konkani',
+    'Goan Mando songs', 'Goan Brass Band', 'Mangalore Konkani baila', 'Konkani coastal melodies',
+    'Konkani wedding songs', 'Goa Carnival songs', 'Konkani romantic acoustic'
+  ],
+  telugu: [
+    'Sid Sriram Telugu', 'Anirudh Telugu', 'Thaman S Telugu', 'Devi Sri Prasad Telugu',
+    'Armaan Malik Telugu', 'Rahul Sipligunj Telugu', 'Kaala Bhairava Telugu', 'Anurag Kulkarni Telugu',
+    'Mangli Telugu songs', 'Ram Miriyala Telugu', 'Shilpa Rao Telugu', 'M.M. Keeravaani Telugu',
+    'RRR Telugu songs', 'Pushpa songs Telugu', 'Pushpa 2 Telugu', 'Devara Telugu songs',
+    'AVPL Telugu songs', 'Guntur Kaaram songs', 'Geetha Govindam songs', 'Baahubali Telugu',
+    'Sarkaru Vaari Paata songs', 'Fidaa Telugu songs', 'DJ Tillu songs', 'HanuMan Telugu songs'
+  ],
+  malayalam: [
+    'Sushin Shyam Malayalam', 'Hesham Abdul Wahab Malayalam', 'Vineeth Sreenivasan Malayalam',
+    'Shaan Rahman Malayalam', 'Dabzee Malayalam', 'K.S. Harisankar Malayalam', 'Vijay Yesudas Malayalam',
+    'ThirumaLi Malayalam', 'Jakes Bejoy Malayalam', 'Sithara Krishnakumar Malayalam',
+    'Aavesham Malayalam songs', 'Manjummel Boys songs', 'Thallumaala songs', 'Premam songs',
+    'Hridayam Malayalam songs', 'RDX Malayalam songs', 'Bheeshma Parvam songs', 'Kaduva Malayalam songs',
+    'Athiran Malayalam songs', 'Kannur Squad songs'
+  ],
+  tamil: [
+    'Anirudh Ravichander Tamil', 'A.R. Rahman Tamil', 'Yuvan Shankar Raja Tamil', 'Harris Jayaraj Tamil',
+    'Thalapathy Vijay Tamil', 'Dhanush Tamil', 'Santhosh Narayanan Tamil', 'Sid Sriram Tamil',
+    'Jonita Gandhi Tamil', 'Dhee Tamil', 'Pradeep Kumar Tamil', 'Shweta Mohan Tamil',
+    'Leo Tamil songs', 'Jailer Tamil songs', 'Master Tamil songs', 'Beast Tamil songs',
+    'Vikram Tamil songs', 'Doctor Tamil songs', 'Petta Tamil songs', 'Mersal Tamil songs',
+    'Thunivu Tamil songs', 'Varisu Tamil songs', 'Ponniyin Selvan songs'
+  ],
+  punjabi: [
+    'AP Dhillon Punjabi', 'Diljit Dosanjh Punjabi', 'Sidhu Moose Wala Punjabi', 'Shubh Punjabi',
+    'Karan Aujla Punjabi', 'Guru Randhawa Punjabi', 'B Praak Punjabi', 'Ammy Virk Punjabi',
+    'Hardy Sandhu Punjabi', 'Jassi Gill Punjabi', 'Imran Khan Punjabi', 'Mankirt Aulakh Punjabi',
+    'Jordan Sandhu Punjabi', 'Sunanda Sharma Punjabi', 'Jasleen Royal Punjabi'
+  ],
+  english: [
+    'The Weeknd top hits', 'Ed Sheeran pop', 'Taylor Swift pop', 'Dua Lipa pop', 'Harry Styles pop',
+    'Billboard Hot 100 pop', 'Bruno Mars hits', 'Coldplay hits', 'Imagine Dragons hits',
+    'Post Malone hits', 'Billie Eilish pop', 'Miley Cyrus pop', 'Sabrina Carpenter pop',
+    'Tate McRae pop', 'Olivia Rodrigo pop', 'Ariana Grande pop', 'Justin Bieber hits',
+    'Drake hits', 'Kendrick Lamar hits', 'Maroon 5 hits', 'OneRepublic hits'
+  ]
+};
+
 /**
- * Fetch more songs for continuous streaming
+ * Fetch more songs for continuous unlimited streaming
  */
 async function getMoreTracks(mood, existingTitles = []) {
   const normalizedExisting = new Set((existingTitles || []).map(t => normalizeTitle(t)));
   const detectedLang = detectLanguage(mood);
 
-  if (detectedLang && SONG_DATABASE[detectedLang]) {
-    const unplayed = SONG_DATABASE[detectedLang].filter(s => !isDuplicate(s.title, normalizedExisting));
-    if (unplayed.length > 0) {
-      const enriched = await enrichTracksWithRealAudio(unplayed);
-      return deduplicateTracks(enriched);
-    }
-    return [];
+  let newTracks = [];
+
+  if (detectedLang && EXTENDED_LANGUAGE_TOPICS[detectedLang]) {
+    const topics = EXTENDED_LANGUAGE_TOPICS[detectedLang];
+    const pickedTopics = shuffleArray(topics).slice(0, 4);
+    
+    try {
+      const searchResults = await Promise.all(
+        pickedTopics.map(q => searchLiveMusicCatalog(q, 'IN', 25))
+      );
+      const flattened = searchResults.flat();
+      const unplayed = flattened.filter(s => !isDuplicate(s.title, normalizedExisting));
+      newTracks = deduplicateTracks(unplayed);
+    } catch (e) {}
+  } else {
+    const customQueries = [
+      mood,
+      `${mood} hits`,
+      `${mood} songs`,
+      `${mood} viral`,
+      `${mood} top tracks`,
+      `${mood} album`,
+      `${mood} popular`
+    ];
+    const pickedQueries = shuffleArray(customQueries).slice(0, 3);
+    try {
+      const searchResults = await Promise.all(
+        pickedQueries.map(q => searchLiveMusicCatalog(q, 'IN', 25))
+      );
+      const flattened = searchResults.flat();
+      const unplayed = flattened.filter(s => !isDuplicate(s.title, normalizedExisting));
+      newTracks = deduplicateTracks(unplayed);
+    } catch (e) {}
   }
 
-  const queries = [mood, `${mood} hits`, 'top trending songs'];
-  const randomQuery = queries[Math.floor(Math.random() * queries.length)];
-  const liveResults = await searchLiveMusicCatalog(randomQuery, 'IN', 30);
-  const unplayed = liveResults.filter(s => !isDuplicate(s.title, normalizedExisting));
-
-  if (unplayed.length > 0) {
-    const enriched = await enrichTracksWithRealAudio(unplayed);
+  if (newTracks.length > 0) {
+    const enriched = await enrichTracksWithRealAudio(newTracks.slice(0, 30));
     return deduplicateTracks(enriched);
   }
 
