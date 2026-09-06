@@ -544,6 +544,78 @@ async function enrichTracksWithRealAudio(tracks) {
   return enriched;
 }
 
+const LANGUAGE_SEARCH_QUERIES = {
+  kannada: [
+    'Sanjith Hegde Kannada',
+    'Vijay Prakash Kannada',
+    'Sonu Nigam Kannada',
+    'Charan Raj Kannada',
+    'Chandan Shetty Kannada',
+    'Armaan Malik Kannada',
+    'Kantara Kannada',
+    'KGF Kannada'
+  ],
+  hindi: [
+    'Arijit Singh Hindi',
+    'Pritam Bollywood',
+    'Badshah Hindi',
+    'Shreya Ghoshal Bollywood',
+    'Jubin Nautiyal Hindi',
+    'Sachin Jigar Bollywood',
+    'Atif Aslam Bollywood',
+    'Vishal Shekhar Hindi'
+  ],
+  konkani: [
+    'Lorna Goan Konkani',
+    'Remo Fernandes Goa',
+    'Henry D\'Souza Konkani',
+    'Wilfy Rebimbus Konkani',
+    'Chris Perry Konkani',
+    'Goan Baila Konkani',
+    'Prajoth D\'Sa Konkani'
+  ],
+  telugu: [
+    'Sid Sriram Telugu',
+    'Anirudh Telugu',
+    'Thaman S Telugu',
+    'Devi Sri Prasad Telugu',
+    'Armaan Malik Telugu',
+    'Rahul Sipligunj Telugu'
+  ],
+  malayalam: [
+    'Sushin Shyam Malayalam',
+    'Hesham Abdul Wahab Malayalam',
+    'Vineeth Sreenivasan Malayalam',
+    'Shaan Rahman Malayalam',
+    'Dabzee Malayalam',
+    'K.S. Harisankar Malayalam'
+  ],
+  tamil: [
+    'Anirudh Ravichander Tamil',
+    'A.R. Rahman Tamil',
+    'Yuvan Shankar Raja Tamil',
+    'Harris Jayaraj Tamil',
+    'Thalapathy Vijay Tamil',
+    'Dhanush Tamil'
+  ],
+  punjabi: [
+    'AP Dhillon Punjabi',
+    'Diljit Dosanjh Punjabi',
+    'Sidhu Moose Wala Punjabi',
+    'Shubh Punjabi',
+    'Karan Aujla Punjabi',
+    'Guru Randhawa Punjabi'
+  ],
+  english: [
+    'The Weeknd top hits',
+    'Ed Sheeran pop',
+    'Taylor Swift pop',
+    'Dua Lipa pop',
+    'Harry Styles pop',
+    'Billboard Hot 100 pop'
+  ]
+};
+
 /**
  * Intelligent UNLIMITED Music Recommendation Engine (100% PURE Language Isolation)
  */
@@ -552,11 +624,24 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
 
   // 1. Regional Language Request: 100% Guaranteed Pure Language Collection (NO English or Hindi Leakage)
   if (detectedLang && SONG_DATABASE[detectedLang]) {
-    const rawList = SONG_DATABASE[detectedLang];
+    const rawCurated = SONG_DATABASE[detectedLang];
+    const queries = LANGUAGE_SEARCH_QUERIES[detectedLang] || [];
     
-    // Shuffle if requested by refresh mix or return full authentic collection
-    const tracksToProcess = options.shuffle ? shuffleArray(rawList) : rawList;
-    const enrichedTracks = await enrichTracksWithRealAudio(tracksToProcess);
+    // Fetch live catalog batches in parallel to give a massive 80-120+ song catalog
+    let flattenedLive = [];
+    try {
+      const liveResultsArray = await Promise.all(
+        queries.map(q => searchLiveMusicCatalog(q, 'IN', 15))
+      );
+      flattenedLive = liveResultsArray.flat();
+    } catch (e) {}
+
+    const combinedList = options.shuffle 
+      ? shuffleArray([...rawCurated, ...flattenedLive])
+      : [...rawCurated, ...flattenedLive];
+      
+    const uniqueList = deduplicateTracks(combinedList);
+    const enrichedTracks = await enrichTracksWithRealAudio(uniqueList);
 
     const langTitles = {
       kannada: "Kannada Superhits & Sandalwood Catalog",
@@ -617,19 +702,19 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
   }
 
   // 2. Custom Artist, Movie, or Mood Search from Global Catalog
-  const [liveBatch1, liveBatch2] = await Promise.all([
-    searchLiveMusicCatalog(mood, 'IN', 35),
-    searchLiveMusicCatalog(`${mood} top hits`, 'IN', 35)
-  ]);
+  const queries = [
+    mood,
+    `${mood} hits`,
+    `${mood} songs`,
+    `${mood} top tracks`,
+    `${mood} popular`
+  ];
+  const liveResultsArray = await Promise.all(
+    queries.map(q => searchLiveMusicCatalog(q, 'IN', 25))
+  );
 
-  const combinedLive = [...liveBatch1, ...liveBatch2];
-  const seen = new Set();
-  const uniqueLive = combinedLive.filter(s => {
-    const norm = normalizeTitle(s.title);
-    if (!norm || seen.has(norm)) return false;
-    seen.add(norm);
-    return true;
-  });
+  const combinedLive = liveResultsArray.flat();
+  const uniqueLive = deduplicateTracks(combinedLive);
 
   const finalTracks = uniqueLive.length >= 10 ? uniqueLive : SONG_DATABASE.english;
   const enrichedTracks = await enrichTracksWithRealAudio(finalTracks);
