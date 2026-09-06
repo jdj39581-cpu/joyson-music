@@ -41,7 +41,8 @@ import {
   Trash2,
   Activity,
   Layers,
-  Shuffle
+  Shuffle,
+  ChevronUp
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -157,6 +158,107 @@ const CATEGORIES = [
   { id: "chill", label: "🎧 Chill & Lo-Fi" },
   { id: "classics", label: "⭐ All-Time Hits" }
 ];
+
+const EQ_PRESETS = [
+  { id: "flat", name: "Flat / Studio 🎧", gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+  { id: "bass", name: "Extreme Bass Boost 🔊", gains: [9, 8, 7, 4, 1, 0, 0, 1, 3, 4] },
+  { id: "vocal", name: "Vocal Clarity 🎙️", gains: [-2, -1, 0, 3, 6, 7, 5, 3, 1, -1] },
+  { id: "edm", name: "Club EDM ⚡", gains: [7, 6, 3, 0, 1, 4, 6, 7, 8, 7] },
+  { id: "lofi", name: "Lo-Fi Warmth 🌙", gains: [5, 5, 4, 2, 1, 0, -2, -4, -6, -8] },
+  { id: "pop", name: "Pop Sparkle ✨", gains: [2, 3, 3, 1, 0, 2, 4, 6, 7, 8] },
+  { id: "rock", name: "Rock Power 🎸", gains: [6, 5, 4, 1, -1, 0, 3, 5, 7, 8] },
+  { id: "acoustic", name: "Acoustic / Folk 🌾", gains: [3, 3, 2, 2, 3, 4, 4, 4, 3, 2] }
+];
+
+const EQ_FREQUENCIES = ["32Hz", "64Hz", "125Hz", "250Hz", "500Hz", "1kHz", "2kHz", "4kHz", "8kHz", "16kHz"];
+
+function EqualizerModal({ isOpen, onClose, eqGains, onGainChange, onSelectPreset, currentPreset }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-slate-900 border border-slate-700 rounded-3xl p-5 sm:p-7 max-w-xl w-full shadow-2xl space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <Sliders className="w-5 h-5 text-emerald-400" />
+            <h3 className="text-base font-extrabold text-white">Pro 10-Band Graphic Equalizer</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white bg-slate-800 rounded-xl transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Preset Chips */}
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Audio Presets:</div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {EQ_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => onSelectPreset(preset)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                  currentPreset === preset.id
+                    ? "bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20"
+                    : "bg-slate-950/70 text-slate-300 border-slate-800 hover:text-white hover:border-slate-700"
+                }`}
+              >
+                {preset.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 10-Band Graphic Equalizer Vertical Sliders */}
+        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+          <div className="grid grid-cols-10 gap-1 sm:gap-2 items-end h-44 sm:h-48 pt-2 pb-1">
+            {EQ_FREQUENCIES.map((freq, idx) => {
+              const gain = eqGains[idx] || 0;
+              const fillPercent = Math.max(10, Math.min(100, ((gain + 12) / 24) * 100));
+              return (
+                <div key={idx} className="flex flex-col items-center justify-between h-full gap-1.5">
+                  <span className={`text-[10px] font-mono font-bold ${gain > 0 ? "text-emerald-400" : gain < 0 ? "text-rose-400" : "text-slate-400"}`}>
+                    {gain > 0 ? `+${gain}` : gain}
+                  </span>
+                  
+                  {/* Interactive Slider Track */}
+                  <div className="relative flex-1 flex flex-col justify-center items-center w-full my-1">
+                    <input
+                      type="range"
+                      min="-12"
+                      max="12"
+                      step="1"
+                      value={gain}
+                      onChange={(e) => onGainChange(idx, parseInt(e.target.value, 10))}
+                      className="accent-emerald-500 cursor-pointer w-20 sm:w-24 -rotate-90 origin-center bg-slate-800 rounded-lg appearance-none h-2"
+                    />
+                  </div>
+                  
+                  <span className="text-[8px] sm:text-[10px] font-mono text-slate-400 tracking-tighter truncate text-center w-full">
+                    {freq}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex items-center justify-between pt-1 text-xs">
+          <span className="text-[11px] text-emerald-400/90 font-mono font-bold flex items-center gap-1">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            ±12 dB Master Sound Control
+          </span>
+          <button
+            onClick={() => onSelectPreset(EQ_PRESETS[0])}
+            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl font-bold transition-all border border-slate-700"
+          >
+            Reset to Flat
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function BeatsVisualizerModal({ isOpen, onClose, isPlaying, track, colorTheme }) {
   const canvasRef = useRef(null);
@@ -388,12 +490,36 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [showVisualizer, setShowVisualizer] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
 
+  // Pro 10-Band Graphic Equalizer State
+  const [showEqModal, setShowEqModal] = useState(false);
+  const [eqGains, setEqGains] = useState([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  const [selectedEqPreset, setSelectedEqPreset] = useState("flat");
+
+  // Smart DJ Gapless Crossfade State (0s, 3s, 6s)
+  const [crossfadeDuration, setCrossfadeDuration] = useState(0);
+
+  // Sticky Floating Glassmorphism Mini-Player State
+  const [showStickyMiniPlayer, setShowStickyMiniPlayer] = useState(false);
+
   const audioRef = useRef(null);
   const ytPlayerRef = useRef(null);
   const playerSectionRef = useRef(null);
   const sleepTimerRef = useRef(null);
   const syncIntervalRef = useRef(null);
   const isDraggingScrubberRef = useRef(false);
+
+  // Sticky Floating Mini-Player Scroll Observer
+  useEffect(() => {
+    if (!playerSectionRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setShowStickyMiniPlayer(!entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(playerSectionRef.current);
+    return () => observer.disconnect();
+  }, [tracks, currentTrackIndex]);
 
   // Load YouTube IFrame API for Full Length 3-5 Minute Songs
   useEffect(() => {
@@ -744,6 +870,27 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3200);
+  };
+
+  const handleGainChange = (bandIndex, val) => {
+    setEqGains(prev => {
+      const next = [...prev];
+      next[bandIndex] = val;
+      return next;
+    });
+    setSelectedEqPreset("custom");
+  };
+
+  const handleSelectPreset = (preset) => {
+    setSelectedEqPreset(preset.id);
+    setEqGains([...preset.gains]);
+    showToast(`🎚️ Equalizer: ${preset.name}`);
+  };
+
+  const handleCycleCrossfade = () => {
+    const nextVal = crossfadeDuration === 0 ? 3 : crossfadeDuration === 3 ? 6 : 0;
+    setCrossfadeDuration(nextVal);
+    showToast(nextVal === 0 ? "Smart DJ Crossfade: OFF" : `🔀 Smart DJ Crossfade: ${nextVal}s smooth mix active!`);
   };
 
   const addToQueue = (track, e) => {
@@ -1300,6 +1447,30 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Pro 10-Band Graphic Equalizer Button */}
+            <button
+              onClick={() => setShowEqModal(true)}
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl border border-slate-700 flex items-center gap-1 font-bold transition-all"
+              title="10-Band Pro Audio Graphic Equalizer"
+            >
+              <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+              <span>EQ ({selectedEqPreset})</span>
+            </button>
+
+            {/* Smart DJ Gapless Crossfade Button */}
+            <button
+              onClick={handleCycleCrossfade}
+              className={`px-2.5 py-1.5 rounded-xl border flex items-center gap-1 font-bold transition-all ${
+                crossfadeDuration > 0
+                  ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/40"
+                  : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white"
+              }`}
+              title="Smart DJ Gapless Crossfade (0s / 3s / 6s)"
+            >
+              <Waves className={`w-3.5 h-3.5 ${crossfadeDuration > 0 ? "text-indigo-400 animate-pulse" : ""}`} />
+              <span>{crossfadeDuration > 0 ? `${crossfadeDuration}s Fade` : "Fade Off"}</span>
+            </button>
+
             {/* Sound Mode Switcher (Studio / Bass Boost / 8D Spatial) */}
             <button
               onClick={handleSoundModeCycle}
@@ -1881,6 +2052,16 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         colorTheme={colorTheme}
       />
 
+      {/* Pro 10-Band Graphic Equalizer Modal */}
+      <EqualizerModal
+        isOpen={showEqModal}
+        onClose={() => setShowEqModal(false)}
+        eqGains={eqGains}
+        onGainChange={handleGainChange}
+        onSelectPreset={handleSelectPreset}
+        currentPreset={selectedEqPreset}
+      />
+
       {/* Floating Glass Toast Notification */}
       {toastMsg && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 backdrop-blur-md border border-emerald-500/50 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2.5 text-xs font-bold animate-in fade-in slide-in-from-bottom duration-200">
@@ -2119,6 +2300,117 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           </div>
         )}
       </div>
+
+      {/* Sticky Floating Glassmorphism Mini-Player Bar */}
+      {showStickyMiniPlayer && activeTrack && (
+        <div className="fixed bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 w-[94%] max-w-4xl z-40 bg-slate-900/95 backdrop-blur-2xl border-2 border-emerald-500/60 rounded-3xl shadow-2xl p-2.5 sm:p-3 flex flex-col gap-1.5 animate-in slide-in-from-bottom-6 duration-300">
+          {/* Mini Scrubber Line across top */}
+          <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono px-1">
+            <span className="text-emerald-400 font-bold">{formatTime(currentTime)}</span>
+            <input
+              type="range"
+              min="0"
+              max={duration || 210}
+              step="0.5"
+              value={currentTime}
+              onChange={handleSeek}
+              className="flex-1 mx-3 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+            />
+            <span>{formatTime(duration || 210)}</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            {/* Left: Artwork + Title + Artist */}
+            <div 
+              onClick={() => {
+                if (playerSectionRef.current) {
+                  playerSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              }}
+              className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer hover:opacity-90 transition-opacity"
+              title="Click to expand full player"
+            >
+              <div className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex-shrink-0 shadow-md">
+                {activeTrack.artworkUrl ? (
+                  <img src={activeTrack.artworkUrl} alt={activeTrack.title} className="w-full h-full object-cover" />
+                ) : (
+                  <Disc3 className={`w-full h-full p-2 text-emerald-400 ${isPlaying ? "animate-spin" : ""}`} />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs sm:text-sm font-extrabold text-white truncate">{activeTrack.title}</span>
+                  {activeTrack.streamCount && (
+                    <span className="hidden md:inline px-1.5 py-0.2 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[9px] font-bold">
+                      {activeTrack.streamCount}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-400 truncate font-medium">{activeTrack.artist}</div>
+              </div>
+            </div>
+
+            {/* Center: Prev, Play/Pause, Next */}
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+              <button
+                onClick={handlePrevTrack}
+                disabled={currentTrackIndex === 0}
+                className="p-2 text-slate-300 hover:text-white disabled:opacity-30 rounded-xl hover:bg-slate-800 transition-all"
+                title="Previous Song"
+              >
+                <SkipBack className="w-4 h-4" />
+              </button>
+              <button
+                onClick={togglePlay}
+                className="p-2.5 sm:p-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-2xl shadow-lg transition-all active:scale-90 font-bold"
+                title={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-current" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current ml-0.5" />}
+              </button>
+              <button
+                onClick={handleNextTrack}
+                className="p-2 text-slate-300 hover:text-white rounded-xl hover:bg-slate-800 transition-all"
+                title="Next Song"
+              >
+                <SkipForward className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Right: Like + Volume + Maximize */}
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+              <button
+                onClick={() => toggleLike(activeTrack)}
+                className={`p-2 rounded-xl transition-all ${
+                  isCurrentLiked ? "text-rose-500 bg-rose-500/10" : "text-slate-400 hover:text-white hover:bg-slate-800"
+                }`}
+                title={isCurrentLiked ? "Unlike" : "Like"}
+              >
+                <Heart className={`w-4 h-4 ${isCurrentLiked ? "fill-rose-500" : ""}`} />
+              </button>
+
+              <button
+                onClick={toggleMute}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all hidden sm:block"
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted || volume === 0 ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
+              </button>
+
+              <button
+                onClick={() => {
+                  if (playerSectionRef.current) {
+                    playerSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }}
+                className="p-2 text-emerald-400 hover:text-emerald-300 hover:bg-slate-800 rounded-xl transition-all flex items-center gap-1 text-xs font-bold"
+                title="Expand Full Player"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
