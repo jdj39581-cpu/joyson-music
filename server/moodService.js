@@ -102,7 +102,7 @@ const POPULARITY_SCORES = {
   'daryacha larani': 96,
 };
 
-// 100% Authentic, Pure Language Datasets
+// 100% Authentic, Complete Regional Music Libraries
 const SONG_DATABASE = {
   konkani: [
     { title: 'Bebdo', artist: 'Lorna Cordeiro', streamCount: '65M Streams', popularity: 100, reason: '#1 All-time legendary Goan Konkani jazz anthem' },
@@ -442,38 +442,37 @@ async function enrichTracksWithRealAudio(tracks) {
 }
 
 /**
- * Intelligent analysis of user mood with 100% PURE LANGUAGE ISOLATION
+ * Intelligent analysis of user mood with ALL songs presented upfront
  */
 async function analyzeMoodAndRecommend(mood, options = {}) {
   const detectedLang = detectLanguage(mood);
 
-  // If a specific language is requested (e.g., Kannada, Hindi, Konkani, Telugu, Malayalam, Tamil, Punjabi, English):
-  // We guarantee 100% pure songs from that language! Zero leakage!
+  // If a specific language is requested: Return the ENTIRE authentic library upfront!
   if (detectedLang && SONG_DATABASE[detectedLang]) {
     const rawList = SONG_DATABASE[detectedLang];
-    const randomized = shuffleArray(rawList).slice(0, 12);
+    const randomized = shuffleArray(rawList); // Return all available songs!
     const enrichedTracks = await enrichTracksWithRealAudio(randomized);
 
     const langTitles = {
-      kannada: "Kannada Superhits",
-      hindi: "Bollywood Hindi Hits",
-      konkani: "Konkani Coastal Classics",
+      kannada: "Kannada Superhits & Classics",
+      hindi: "Bollywood Hindi Hits & Blockbusters",
+      konkani: "Konkani Coastal Classics & Baila",
       telugu: "Telugu Blockbuster Hits",
-      malayalam: "Malayalam Top Grooves",
-      tamil: "Tamil Chartbusters",
-      punjabi: "Punjabi Banger Hits",
-      english: "Global Pop Chartbusters"
+      malayalam: "Malayalam Top Melodies & Grooves",
+      tamil: "Tamil Chartbusters & Mass Anthems",
+      punjabi: "Punjabi Banger Hits & Pop",
+      english: "Global Billboard Pop & R&B Hits"
     };
 
     const langDescriptions = {
-      kannada: "100% authentic Sandalwood chartbusters and romantic melodies.",
-      hindi: "100% authentic Bollywood hits and romantic party vibes.",
-      konkani: "100% authentic Goan and Mangalorean coastal classics.",
-      telugu: "100% authentic Tollywood blockbuster songs and beats.",
-      malayalam: "100% authentic Mollywood melodies and viral party hits.",
-      tamil: "100% authentic Kollywood mass anthems and melodious tracks.",
-      punjabi: "100% authentic high-energy Punjabi bangers.",
-      english: "100% authentic global Billboard pop and R&B chartbusters."
+      kannada: "Full authentic catalog of Sandalwood chartbusters, mass beats, and evergreen romantic melodies.",
+      hindi: "Full authentic catalog of Bollywood hits, dance numbers, and romantic anthems.",
+      konkani: "Full authentic catalog of Goan and Mangalorean coastal classics and baila hits.",
+      telugu: "Full authentic catalog of Tollywood blockbuster songs and party dance tracks.",
+      malayalam: "Full authentic catalog of Mollywood acoustic melodies and viral hits.",
+      tamil: "Full authentic catalog of Kollywood mass anthems and melodious tracks.",
+      punjabi: "Full authentic catalog of high-energy Punjabi pop and trap bangers.",
+      english: "Full authentic catalog of global Billboard pop, synthwave, and R&B chartbusters."
     };
 
     const langEmojis = {
@@ -499,8 +498,8 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
     };
 
     return {
-      vibeTitle: langTitles[detectedLang] || `${detectedLang.toUpperCase()} Hits`,
-      vibeDescription: langDescriptions[detectedLang] || `Pure 100% ${detectedLang} songs.`,
+      vibeTitle: langTitles[detectedLang] || `${detectedLang.toUpperCase()} Complete Collection`,
+      vibeDescription: langDescriptions[detectedLang] || `Complete collection of 100% authentic ${detectedLang} songs.`,
       emoji: langEmojis[detectedLang] || "🎵✨",
       genre: `${detectedLang.charAt(0).toUpperCase() + detectedLang.slice(1)} Hits`,
       energy: "95% Vibrant",
@@ -512,7 +511,7 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
     };
   }
 
-  // Generic mood (e.g. "late night coding focus", "gym workout")
+  // Generic mood
   let baseData = null;
 
   if (genAI) {
@@ -522,7 +521,7 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
 You are an expert music curator and AI DJ named AuraBeat.
 Analyze the user mood: "${mood}".
 
-Requirement: Recommend 12 MOST POPULAR, HIGH-ENERGY songs matching "${mood}".
+Requirement: Recommend 16-20 MOST POPULAR, HIGH-ENERGY songs matching "${mood}".
 Respond with ONLY a raw JSON object:
 {
   "vibeTitle": "A creative title (3-6 words)",
@@ -557,7 +556,7 @@ Respond with ONLY a raw JSON object:
 
   const rawTracks = baseData.tracks && baseData.tracks.length > 0 
     ? baseData.tracks 
-    : SONG_DATABASE.english.slice(0, 12);
+    : SONG_DATABASE.english;
 
   const enrichedTracks = await enrichTracksWithRealAudio(rawTracks);
 
@@ -580,33 +579,6 @@ Respond with ONLY a raw JSON object:
 }
 
 /**
- * Ultra-Fast (<200ms) "Load More Songs" with 100% PURE Language Guarantee
- */
-async function getMoreTracks(mood, existingTitles = []) {
-  const normalizedExisting = new Set((existingTitles || []).map(t => normalizeTitle(t)));
-  const detectedLang = detectLanguage(mood);
-
-  // If language detected, pull 100% only from that language's database
-  if (detectedLang && SONG_DATABASE[detectedLang]) {
-    const unplayed = SONG_DATABASE[detectedLang].filter(s => !isDuplicate(s.title, normalizedExisting));
-    if (unplayed.length > 0) {
-      const enriched = await enrichTracksWithRealAudio(shuffleArray(unplayed).slice(0, 10));
-      return enriched.filter(t => !isDuplicate(t.title, normalizedExisting));
-    }
-  }
-
-  // Generic fallback
-  const pool = SONG_DATABASE.english;
-  const unplayedFromPool = pool.filter(s => !isDuplicate(s.title, normalizedExisting));
-  if (unplayedFromPool.length > 0) {
-    const enriched = await enrichTracksWithRealAudio(shuffleArray(unplayedFromPool).slice(0, 10));
-    return enriched.filter(t => !isDuplicate(t.title, normalizedExisting));
-  }
-
-  return [];
-}
-
-/**
  * Fallback recommendation generator
  */
 function generateFallbackRecommendations(mood) {
@@ -619,8 +591,8 @@ function generateFallbackRecommendations(mood) {
     colorTheme: ['#6366f1', '#a855f7'],
     spotifySearchQuery: mood,
     spotifyPlaylistCategory: 'chill',
-    tracks: shuffleArray(SONG_DATABASE.english).slice(0, 12),
+    tracks: shuffleArray(SONG_DATABASE.english),
   };
 }
 
-module.exports = { analyzeMoodAndRecommend, getMoreTracks, fetchRealTrackAudio, getCandidateVideoIds, fetchTrackLyrics };
+module.exports = { analyzeMoodAndRecommend, fetchRealTrackAudio, getCandidateVideoIds, fetchTrackLyrics };

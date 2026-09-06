@@ -11,8 +11,6 @@ import {
   Check, 
   Sparkles, 
   Disc3, 
-  Plus, 
-  Loader2, 
   SkipForward, 
   SkipBack, 
   Volume2, 
@@ -166,7 +164,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [isMuted, setIsMuted] = useState(false);
   const [isRepeat, setIsRepeat] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Professional Audio Modes
@@ -683,32 +680,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
       console.warn("Refresh error:", e);
     } finally {
       setIsRefreshing(false);
-    }
-  };
-
-  // Ultra-Fast (<200ms) Load More Songs
-  const handleLoadMore = async () => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-
-    try {
-      const existingTitles = tracks.map(t => t.title);
-      const res = await fetch("/api/more-tracks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mood: mood || vibeTitle, existingTitles }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.tracks && data.tracks.length > 0) {
-          setTracks(prev => [...prev, ...data.tracks]);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load more tracks:", err);
-    } finally {
-      setLoadingMore(false);
     }
   };
 
@@ -1474,19 +1445,19 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         </div>
       )}
 
-      {/* Recommended / Liked Track List */}
+      {/* Complete Music Catalog / Playlist */}
       <div className="bg-slate-900/95 rounded-3xl border border-slate-800 p-3.5 sm:p-6 shadow-xl">
         <div className="flex flex-wrap items-center justify-between mb-3 pb-2.5 border-b border-slate-800 gap-2">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             <h3 className="text-sm sm:text-base font-bold text-white">
-              {showLikedOnly ? "Liked Songs" : "Top Most Listened Tracks (Full Length)"} ({displayedList.length})
+              {showLikedOnly ? "Liked Songs" : "Full Music Library"} ({displayedList.length} Tracks)
             </h3>
           </div>
           
           <div className="flex items-center gap-2">
             <span className="text-[10px] sm:text-[11px] text-amber-400/90 font-semibold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
-              <TrendingUp className="w-3 h-3" /> Ranked by Popularity
+              <TrendingUp className="w-3 h-3" /> 100% Available On Demand
             </span>
           </div>
         </div>
@@ -1624,29 +1595,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                 </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Load More Songs Button (Ultra-Fast <200ms) */}
-        {!showLikedOnly && (
-          <div className="mt-4 pt-3 border-t border-slate-800 flex justify-center">
-            <button
-              onClick={handleLoadMore}
-              disabled={loadingMore}
-              className="px-5 py-2.5 sm:px-6 sm:py-3 bg-gradient-to-r from-slate-800 to-slate-800/90 hover:from-slate-700 hover:to-slate-700/90 border border-slate-700 hover:border-emerald-500/60 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
-            >
-              {loadingMore ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                  <span>Loading More Songs…</span>
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 text-emerald-400" />
-                  <span>Load More Songs for this Mood</span>
-                </>
-              )}
-            </button>
           </div>
         )}
       </div>
