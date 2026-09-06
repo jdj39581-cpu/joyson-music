@@ -15,25 +15,27 @@ import {
   SkipBack, 
   Volume2, 
   VolumeX, 
-  Repeat,
-  Heart,
-  Mic2,
-  RadioTower,
-  CloudRain,
-  Timer,
-  Sliders,
-  Camera,
-  X,
-  Waves,
-  Flame,
-  Coffee,
-  RotateCw,
-  TrendingUp,
-  Flame as FireIcon,
-  RotateCcw,
-  Maximize2,
-  Minimize2,
-  Gauge
+  Repeat, 
+  Heart, 
+  Mic2, 
+  RadioTower, 
+  CloudRain, 
+  Timer, 
+  Sliders, 
+  Camera, 
+  X, 
+  Waves, 
+  Flame, 
+  Coffee, 
+  RotateCw, 
+  TrendingUp, 
+  Flame as FireIcon, 
+  RotateCcw, 
+  Maximize2, 
+  Minimize2, 
+  Gauge, 
+  Search, 
+  Loader2 
 } from "lucide-react";
 
 // Clean Spotify & YouTube SVG Icons
@@ -165,6 +167,8 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const [isRepeat, setIsRepeat] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [filterQuery, setFilterQuery] = useState("");
+  const [autoLoadingMore, setAutoLoadingMore] = useState(false);
 
   // Professional Audio Modes
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
@@ -445,7 +449,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
   // Play Full Song Function
   const playTrackAtIndex = async (index) => {
-    const list = showLikedOnly ? likedSongs : tracks;
+    const list = showLikedOnly ? likedSongs : displayedList;
     if (index < 0 || index >= list.length) return;
     const track = list[index];
     if (!track) return;
@@ -546,7 +550,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   };
 
   const handleNextTrack = () => {
-    const list = showLikedOnly ? likedSongs : tracks;
+    const list = showLikedOnly ? likedSongs : displayedList;
     if (isRepeat) {
       if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
         ytPlayerRef.current.seekTo(0);
@@ -695,7 +699,15 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     borderColor: `${colorTheme[0]}40`,
   };
 
-  const displayedList = showLikedOnly ? likedSongs : tracks;
+  // In-Playlist Instant Search Filter
+  const baseList = showLikedOnly ? likedSongs : tracks;
+  const displayedList = filterQuery.trim()
+    ? baseList.filter(t => 
+        t.title.toLowerCase().includes(filterQuery.toLowerCase()) || 
+        t.artist.toLowerCase().includes(filterQuery.toLowerCase())
+      )
+    : baseList;
+
   const currentSoundMode = SOUND_MODES[soundModeIndex];
 
   return (
@@ -1445,34 +1457,52 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         </div>
       )}
 
-      {/* Complete Music Catalog / Playlist */}
+      {/* Complete Unlimited Music Catalog / Playlist */}
       <div className="bg-slate-900/95 rounded-3xl border border-slate-800 p-3.5 sm:p-6 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between mb-3 pb-2.5 border-b border-slate-800 gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-3 border-b border-slate-800 gap-3">
           <div className="flex items-center gap-2">
             <Music className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
             <h3 className="text-sm sm:text-base font-bold text-white">
-              {showLikedOnly ? "Liked Songs" : "Full Music Library"} ({displayedList.length} Tracks)
+              {showLikedOnly ? "Liked Songs" : "Unlimited Song Library"} ({displayedList.length} Tracks)
             </h3>
           </div>
           
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] sm:text-[11px] text-amber-400/90 font-semibold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20">
-              <TrendingUp className="w-3 h-3" /> 100% Available On Demand
-            </span>
+          {/* In-Playlist Search Input */}
+          <div className="relative w-full sm:w-64">
+            <input
+              type="text"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              placeholder="Filter songs in this playlist..."
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
+            />
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+            {filterQuery && (
+              <button
+                onClick={() => setFilterQuery("")}
+                className="absolute right-2.5 top-2 text-slate-500 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
         {displayedList.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
-            {showLikedOnly ? "No liked songs yet! Click the ❤️ heart button on any song to save it." : "No songs found."}
+            {showLikedOnly 
+              ? "No liked songs yet! Click the ❤️ heart button on any song to save it." 
+              : filterQuery 
+                ? `No songs found matching "${filterQuery}".` 
+                : "No songs found."}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1 scrollbar-thin">
             {displayedList.map((track, idx) => {
               const isThisSelected = currentTrackIndex === idx;
               const isLiked = likedSongs.some(t => t.title.toLowerCase() === track.title.toLowerCase());
-              const isTopOne = idx === 0 && !showLikedOnly;
-              const isTopThree = idx < 3 && !showLikedOnly;
+              const isTopOne = idx === 0 && !showLikedOnly && !filterQuery;
+              const isTopThree = idx < 3 && !showLikedOnly && !filterQuery;
 
               return (
                 <div
