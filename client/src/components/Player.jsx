@@ -62,6 +62,16 @@ function YouTubeIcon({ className = "w-4 h-4" }) {
   );
 }
 
+// Fisher-Yates array shuffle for instant zero-lag mix randomization
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // Web Audio API Ambient Sound Synthesizer
 class AmbientSoundGenerator {
   constructor() {
@@ -435,6 +445,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   } = playlist;
 
   const [tracks, setTracks] = useState(initialTracks);
+  const [currentTrack, setCurrentTrack] = useState(initialTracks[0] || null);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -660,6 +671,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     });
 
     setTracks(unique);
+    setCurrentTrack(unique[0] || null);
     setCurrentTrackIndex(0);
     setIsPlaying(false);
     setCurrentTime(0);
@@ -673,7 +685,8 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   }, [playlist, initialTracks]);
 
-  const activeTrack = (showLikedOnly ? likedSongs[currentTrackIndex] : tracks[currentTrackIndex]) || tracks[0] || null;
+  // Direct, rock-solid track reference — zero index mismatch
+  const activeTrack = currentTrack || (showLikedOnly ? likedSongs[0] : displayedList[0]) || tracks[0] || null;
 
   // Save liked songs to localStorage
   const toggleLike = (track) => {
@@ -765,14 +778,11 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     };
   }, [sleepTimerMinutes]);
 
-  // Play Full Song Function
-  const playTrackAtIndex = async (index) => {
-    const list = showLikedOnly ? likedSongs : displayedList;
-    if (index < 0 || index >= list.length) return;
-    const track = list[index];
+  // Play Full Song Function (Direct Pointer - 100% Guaranteed Exact Song Plays)
+  const playTrack = async (track) => {
     if (!track) return;
 
-    setCurrentTrackIndex(index);
+    setCurrentTrack(track);
     setCurrentTime(0);
 
     if (isAiDjActive) {
@@ -788,13 +798,8 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           const data = await res.json();
           if (data.videoId) {
             videoId = data.videoId;
-            setTracks(prev => {
-              const copy = [...prev];
-              if (copy[index]) {
-                copy[index] = { ...copy[index], youtubeVideoId: data.videoId, candidateVideoIds: data.videoIds };
-              }
-              return copy;
-            });
+            setTracks(prev => prev.map(t => (t.title.toLowerCase() === track.title.toLowerCase()) ? { ...t, youtubeVideoId: data.videoId, candidateVideoIds: data.videoIds } : t));
+            setCurrentTrack(prev => (prev && prev.title.toLowerCase() === track.title.toLowerCase()) ? { ...prev, youtubeVideoId: data.videoId, candidateVideoIds: data.videoIds } : prev);
           }
         }
       } catch (e) {}
@@ -822,6 +827,13 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
     if (playerSectionRef.current) {
       playerSectionRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  };
+
+  const playTrackAtIndex = (index) => {
+    const list = showLikedOnly ? likedSongs : displayedList;
+    if (index >= 0 && index < list.length) {
+      playTrack(list[index]);
     }
   };
 
@@ -859,10 +871,10 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           ytPlayerRef.current.playVideo(); 
           setIsPlaying(true);
         } catch (e) {
-          playTrackAtIndex(currentTrackIndex);
+          playTrack(activeTrack);
         }
       } else {
-        playTrackAtIndex(currentTrackIndex);
+        playTrack(activeTrack);
       }
     }
   };
@@ -912,25 +924,18 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     const trackToPlay = queue[index];
     if (!trackToPlay) return;
     setQueue(prev => prev.filter((_, i) => i !== index));
-    const foundIdx = tracks.findIndex(t => t.title.toLowerCase() === trackToPlay.title.toLowerCase());
-    if (foundIdx !== -1) {
-      playTrackAtIndex(foundIdx);
-    } else {
-      setTracks(prev => [trackToPlay, ...prev]);
-      playTrackAtIndex(0);
-    }
+    playTrack(trackToPlay);
   };
 
   const handleShuffle = () => {
     setTracks(prev => {
-      const copy = [...prev];
-      for (let i = copy.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
+      const shuffled = shuffleArray(prev);
+      if (shuffled.length > 0) {
+        setCurrentTrack(shuffled[0]);
       }
-      return copy;
+      return shuffled;
     });
-    showToast("🔀 Playlist shuffled!");
+    showToast("🔀 All songs shuffled! 1st song moved to new position!");
   };
 
   const loadMoreSongs = async () => {
@@ -979,26 +984,27 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     if (queue.length > 0) {
       const nextTrack = queue[0];
       setQueue(prev => prev.slice(1));
-      const foundIdx = tracks.findIndex(t => t.title.toLowerCase() === nextTrack.title.toLowerCase());
-      if (foundIdx !== -1) {
-        playTrackAtIndex(foundIdx);
-      } else {
-        setTracks(prev => [nextTrack, ...prev]);
-        playTrackAtIndex(0);
-      }
+      playTrack(nextTrack);
       return;
     }
-    const list = showLikedOnly ? likedSongs : displayedList;
-    if (currentTrackIndex < list.length - 1) {
-      playTrackAtIndex(currentTrackIndex + 1);
+    const currentList = showLikedOnly ? likedSongs : displayedList;
+    if (currentList.length === 0) return;
+    const currentIdx = currentList.findIndex(t => t.title.toLowerCase() === (activeTrack?.title || '').toLowerCase());
+    if (currentIdx !== -1 && currentIdx < currentList.length - 1) {
+      playTrack(currentList[currentIdx + 1]);
     } else {
-      playTrackAtIndex(0);
+      playTrack(currentList[0]);
     }
   };
 
   const handlePrevTrack = () => {
-    if (currentTrackIndex > 0) {
-      playTrackAtIndex(currentTrackIndex - 1);
+    const currentList = showLikedOnly ? likedSongs : displayedList;
+    if (currentList.length === 0) return;
+    const currentIdx = currentList.findIndex(t => t.title.toLowerCase() === (activeTrack?.title || '').toLowerCase());
+    if (currentIdx > 0) {
+      playTrack(currentList[currentIdx - 1]);
+    } else {
+      playTrack(currentList[currentList.length - 1]);
     }
   };
 
@@ -1090,32 +1096,35 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Refresh All Songs
-  const handleRefreshAll = async () => {
-    if (isRefreshing) return;
-    setIsRefreshing(true);
-    try {
-      if (onRefreshPlaylist) {
-        await onRefreshPlaylist(mood || vibeTitle);
-      } else {
-        const res = await fetch("/api/playlist", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mood: mood || vibeTitle }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.tracks && data.tracks.length > 0) {
-            setTracks(data.tracks);
-            setCurrentTrackIndex(0);
-          }
-        }
+  // Ultra-fast, Zero-Lag Instant Refresh & Shuffle
+  const handleRefreshAll = () => {
+    // 1. Instant client-side full randomization (Zero Waiting / Zero Lag)
+    setTracks(prev => {
+      const shuffled = shuffleArray(prev);
+      if (shuffled.length > 0) {
+        setCurrentTrack(shuffled[0]);
       }
-    } catch (e) {
-      console.warn("Refresh error:", e);
-    } finally {
-      setIsRefreshing(false);
-    }
+      return shuffled;
+    });
+    showToast("✨ Fresh Mix! Songs shuffled with fresh variety!");
+
+    // 2. Fetch fresh randomized songs in background seamlessly
+    fetch("/api/playlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mood: mood || vibeTitle, shuffle: true }),
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.tracks && data.tracks.length > 0) {
+        setTracks(prev => {
+          const newSet = new Set(data.tracks.map(t => (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')));
+          const nonDupes = prev.filter(t => !newSet.has((t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')));
+          return shuffleArray([...data.tracks, ...nonDupes]);
+        });
+      }
+    })
+    .catch(() => {});
   };
 
   const formatTime = (seconds) => {
@@ -2138,7 +2147,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
             className="space-y-2 max-h-[640px] overflow-y-auto pr-1 scrollbar-thin"
           >
             {displayedList.map((track, idx) => {
-              const isThisSelected = currentTrackIndex === idx;
+              const isThisSelected = activeTrack && (activeTrack.title.toLowerCase() === track.title.toLowerCase());
               const isLiked = likedSongs.some(t => t.title.toLowerCase() === track.title.toLowerCase());
               const isTopOne = idx === 0 && !showLikedOnly && !filterQuery && selectedCategory === "all";
               const isTopThree = idx < 3 && !showLikedOnly && !filterQuery && selectedCategory === "all";
@@ -2146,7 +2155,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               return (
                 <div
                   key={idx}
-                  onClick={() => playTrackAtIndex(idx)}
+                  onClick={() => playTrack(track)}
                   className={`group relative flex items-center justify-between gap-3 p-2.5 sm:p-3 rounded-2xl transition-all duration-150 border cursor-pointer ${
                     isThisSelected
                       ? "bg-slate-800/95 border-emerald-500/70 shadow-md shadow-emerald-500/10"
@@ -2261,7 +2270,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                         if (isThisSelected) {
                           togglePlay();
                         } else {
-                          playTrackAtIndex(idx);
+                          playTrack(track);
                         }
                       }}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${

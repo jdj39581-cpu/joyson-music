@@ -79,13 +79,13 @@ app.get('/api/candidate-videos', async (req, res) => {
 
 // Main mood playlist recommendation endpoint
 app.post('/api/playlist', async (req, res) => {
-  const { mood } = req.body;
+  const { mood, shuffle } = req.body;
   if (!mood || typeof mood !== 'string') {
     return res.status(400).json({ error: 'Mood query is required' });
   }
 
   try {
-    const aiResult = await analyzeMoodAndRecommend(mood.trim());
+    const aiResult = await analyzeMoodAndRecommend(mood.trim(), { shuffle: !!shuffle });
     const spotifyUrl = `https://open.spotify.com/search/${encodeURIComponent(aiResult.spotifySearchQuery || mood)}`;
 
     const response = {

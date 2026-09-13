@@ -636,9 +636,13 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
       flattenedLive = liveResultsArray.flat();
     } catch (e) {}
 
-    const combinedList = options.shuffle 
-      ? shuffleArray([...rawCurated, ...flattenedLive])
-      : [...rawCurated, ...flattenedLive];
+    let combinedList;
+    if (options.shuffle) {
+      combinedList = shuffleArray([...rawCurated, ...flattenedLive]);
+    } else {
+      const sortedCurated = [...rawCurated].sort((a, b) => (b.popularity || 80) - (a.popularity || 80));
+      combinedList = [...sortedCurated, ...flattenedLive];
+    }
       
     const uniqueList = deduplicateTracks(combinedList);
     const enrichedTracks = await enrichTracksWithRealAudio(uniqueList);
@@ -717,7 +721,10 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
   const uniqueLive = deduplicateTracks(combinedLive);
 
   const finalTracks = uniqueLive.length >= 10 ? uniqueLive : SONG_DATABASE.english;
-  const enrichedTracks = await enrichTracksWithRealAudio(finalTracks);
+  const sortedFinal = options.shuffle 
+    ? shuffleArray(finalTracks) 
+    : [...finalTracks].sort((a, b) => (b.popularity || 80) - (a.popularity || 80));
+  const enrichedTracks = await enrichTracksWithRealAudio(sortedFinal);
 
   return {
     vibeTitle: `${mood.charAt(0).toUpperCase() + mood.slice(1)} Mix`,
