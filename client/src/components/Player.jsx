@@ -1209,8 +1209,25 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
   const currentSoundMode = SOUND_MODES[soundModeIndex];
 
+  // Get Spotify Greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  };
+
+  const SPOTIFY_QUICK_CARDS = [
+    { title: "Liked Songs", desc: "Your Favorites", emoji: "❤️", query: "liked", color: "from-[#450af5] to-[#8e8ee5]", isLiked: true },
+    { title: "Kannada Superhits", desc: "Sandalwood DJ Mix", emoji: "🟡", query: "Kannada", color: "from-amber-600 to-red-700" },
+    { title: "Bollywood Party Hits", desc: "Top Hindi Club Remixes", emoji: "🇮🇳", query: "Hindi", color: "from-orange-600 to-rose-700" },
+    { title: "Konkani Coastal Baila", desc: "Goan & Mangalore Classics", emoji: "🌴", query: "Konkani", color: "from-emerald-600 to-teal-700" },
+    { title: "Telugu Blockbusters", desc: "Tollywood High-Bass Mass", emoji: "🕺", query: "Telugu", color: "from-purple-600 to-pink-700" },
+    { title: "Global Billboard 50", desc: "Worldwide Synthwave & Pop", emoji: "🇺🇸", query: "English", color: "from-blue-600 to-indigo-700" }
+  ];
+
   return (
-    <div className="w-full space-y-4 sm:space-y-6">
+    <div className="w-full space-y-6 pb-24 font-sans text-white select-none">
       {/* Invisible Full Song Audio Engine (Zero Video UI, Pure Audio) */}
       <div 
         style={{ 
@@ -1338,6 +1355,45 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           </div>
         </div>
       )}
+
+      {/* Spotify Top Greeting & 6 Quick-Access Cards */}
+      <div className="space-y-3">
+        <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+          {getGreeting()}
+        </h2>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+          {SPOTIFY_QUICK_CARDS.map((card, idx) => (
+            <div
+              key={idx}
+              onClick={() => {
+                if (card.isLiked) {
+                  setShowLikedOnly(true);
+                } else if (onRefreshPlaylist) {
+                  onRefreshPlaylist(card.query);
+                }
+              }}
+              className="group relative flex items-center bg-[#242424]/80 hover:bg-[#2e2e2e] rounded-lg overflow-hidden transition-all duration-200 cursor-pointer shadow-md hover:shadow-xl border border-transparent hover:border-white/10"
+            >
+              <div className={`w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br ${card.color} flex items-center justify-center text-xl sm:text-2xl flex-shrink-0 font-bold shadow-inner`}>
+                {card.emoji}
+              </div>
+              <div className="flex-1 px-3 min-w-0">
+                <p className="text-xs sm:text-sm font-bold text-white truncate group-hover:text-[#1ed760] transition-colors">
+                  {card.title}
+                </p>
+                <p className="text-[10px] sm:text-[11px] text-[#b3b3b3] truncate">
+                  {card.desc}
+                </p>
+              </div>
+              <div className="mr-3 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-1 group-hover:translate-y-0 flex-shrink-0">
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#1ed760] text-black flex items-center justify-center shadow-lg hover:scale-105">
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Playlist Hero Banner */}
       <div 
