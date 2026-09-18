@@ -731,6 +731,8 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   };
 
   // Fetch Live Synchronized Karaoke Lyrics
+  const activeLyricRef = useRef(null);
+
   useEffect(() => {
     if (showLyrics && activeTrack) {
       setLoadingLyrics(true);
@@ -745,6 +747,23 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         });
     }
   }, [showLyrics, activeTrack?.title]);
+
+  // Auto-scroll active lyric line to center of view as song plays
+  useEffect(() => {
+    if (showLyrics && activeLyricRef.current) {
+      activeLyricRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [currentTime, showLyrics]);
+
+  const handleSeekToTime = (time) => {
+    setCurrentTime(time);
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
+      try { ytPlayerRef.current.seekTo(time, true); } catch (e) {}
+    }
+    if (audioRef.current) {
+      try { audioRef.current.currentTime = time; } catch (e) {}
+    }
+  };
 
   // Sleep Timer Countdown Interval
   useEffect(() => {
@@ -929,13 +948,20 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
   const handleShuffle = () => {
     setTracks(prev => {
-      const shuffled = shuffleArray(prev);
+      let shuffled = shuffleArray(prev);
+      if (shuffled.length > 1 && prev.length > 0 && (shuffled[0].title || '').toLowerCase() === (prev[0].title || '').toLowerCase()) {
+        const swapIdx = 1 + Math.floor(Math.random() * (shuffled.length - 1));
+        [shuffled[0], shuffled[swapIdx]] = [shuffled[swapIdx], shuffled[0]];
+      }
       if (shuffled.length > 0) {
         setCurrentTrack(shuffled[0]);
+        if (isPlaying) {
+          playTrack(shuffled[0]);
+        }
       }
+      showToast(`🔀 Shuffled! Now Playing: ${shuffled[0]?.title || 'New Song'}`);
       return shuffled;
     });
-    showToast("🔀 All songs shuffled! 1st song moved to new position!");
   };
 
   const loadMoreSongs = async () => {
@@ -1096,17 +1122,24 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Ultra-fast, Zero-Lag Instant Refresh & Shuffle
+  // Ultra-fast, Zero-Lag Instant Refresh & Guaranteed Shuffle
   const handleRefreshAll = () => {
-    // 1. Instant client-side full randomization (Zero Waiting / Zero Lag)
+    // 1. Instant client-side full randomization & guaranteed new top track
     setTracks(prev => {
-      const shuffled = shuffleArray(prev);
+      let shuffled = shuffleArray(prev);
+      if (shuffled.length > 1 && prev.length > 0 && (shuffled[0].title || '').toLowerCase() === (prev[0].title || '').toLowerCase()) {
+        const swapIdx = 1 + Math.floor(Math.random() * (shuffled.length - 1));
+        [shuffled[0], shuffled[swapIdx]] = [shuffled[swapIdx], shuffled[0]];
+      }
       if (shuffled.length > 0) {
         setCurrentTrack(shuffled[0]);
+        if (isPlaying) {
+          playTrack(shuffled[0]);
+        }
       }
+      showToast(`✨ Fresh Mix! Now Playing: ${shuffled[0]?.title || 'Shuffled Song'}`);
       return shuffled;
     });
-    showToast("✨ Fresh Mix! Songs shuffled with fresh variety!");
 
     // 2. Fetch fresh randomized songs in background seamlessly
     fetch("/api/playlist", {
@@ -1120,7 +1153,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         setTracks(prev => {
           const newSet = new Set(data.tracks.map(t => (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')));
           const nonDupes = prev.filter(t => !newSet.has((t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '')));
-          return shuffleArray([...data.tracks, ...nonDupes]);
+          return [...data.tracks, ...nonDupes];
         });
       }
     })
@@ -1726,6 +1759,16 @@ export default function Player({ playlist, onRefreshPlaylist }) {
                   >
                     <Repeat className="w-4 h-4" />
                   </button>
+
+                  {/* Shuffle Button in Control Bar */}
+                  <button
+                    onClick={handleShuffle}
+                    className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-emerald-400 transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold"
+                    title="Shuffle All Songs (🔀)"
+                  >
+                    <Shuffle className="w-4 h-4 text-emerald-400" />
+                    <span className="hidden sm:inline">Shuffle</span>
+                  </button>
                 </div>
 
                 {/* Lyrics & Volume Controls */}
@@ -1788,38 +1831,76 @@ export default function Player({ playlist, onRefreshPlaylist }) {
         </div>
       )}
 
-      {/* Real-Time Synchronized Karaoke Lyrics Drawer */}
+      {/* Real-Time Synchronized Karaoke Lyrics Drawer (Ultra-Readable & Auto-Synced) */}
       {showLyrics && (
-        <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-5 shadow-2xl transition-all animate-in fade-in slide-in-from-bottom duration-300">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800">
-            <h4 className="text-sm font-bold text-white flex items-center gap-2">
-              <Mic2 className="w-4 h-4 text-emerald-400" />
-              <span>Karaoke Lyrics — {activeTrack?.title}</span>
-            </h4>
-            <button onClick={() => setShowLyrics(false)} className="text-slate-400 hover:text-white">
+        <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl transition-all animate-in fade-in slide-in-from-bottom duration-300 relative">
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                <Mic2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                  <span>Live Karaoke Lyrics</span>
+                  <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                    Auto-Synced
+                  </span>
+                </h4>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Singing to <b>{activeTrack?.title}</b> ({activeTrack?.artist}) • Click any lyric line to seek!
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowLyrics(false)} 
+              className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-all"
+              title="Close Lyrics"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {loadingLyrics ? (
-            <div className="py-8 flex flex-col items-center justify-center space-y-2 text-slate-400 text-xs">
-              <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
-              <span>Generating real-time karaoke lyrics…</span>
+            <div className="py-12 flex flex-col items-center justify-center space-y-3 text-slate-300 text-xs sm:text-sm">
+              <Loader2 className="w-7 h-7 animate-spin text-emerald-400" />
+              <span className="font-semibold">Loading real-time synchronized karaoke lyrics…</span>
+            </div>
+          ) : lyrics.length === 0 ? (
+            <div className="py-10 text-center text-slate-400 text-xs">
+              No lyrics found for this track. Enjoy the instrumental vibe! 🎵
             </div>
           ) : (
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-2 scrollbar-thin">
+            <div className="space-y-2.5 max-h-80 sm:max-h-[380px] overflow-y-auto pr-2 scrollbar-thin scroll-smooth text-left">
               {lyrics.map((line, idx) => {
-                const isActive = currentTime >= line.time && (idx === lyrics.length - 1 || currentTime < lyrics[idx + 1].time);
+                const nextLineTime = lyrics[idx + 1]?.time ?? Infinity;
+                const isActive = currentTime >= line.time && (idx === lyrics.length - 1 || currentTime < nextLineTime);
+                const isPast = currentTime >= nextLineTime;
+
                 return (
                   <div
                     key={idx}
-                    className={`p-2.5 rounded-xl transition-all duration-300 ${
+                    ref={isActive ? activeLyricRef : null}
+                    onClick={() => handleSeekToTime(line.time)}
+                    className={`group cursor-pointer px-4 py-3 rounded-2xl transition-all duration-200 flex items-center justify-between gap-3 ${
                       isActive
-                        ? "bg-emerald-500/20 text-emerald-300 font-extrabold text-sm sm:text-base border border-emerald-500/40 shadow-sm scale-105"
-                        : "text-slate-400 text-xs sm:text-sm hover:text-white"
+                        ? "bg-gradient-to-r from-emerald-500/30 via-emerald-500/20 to-transparent border border-emerald-400/60 shadow-lg text-emerald-200 font-black text-base sm:text-lg scale-[1.02] ring-1 ring-emerald-400/40"
+                        : isPast
+                          ? "text-slate-400 text-xs sm:text-sm font-medium hover:text-slate-200 hover:bg-slate-800/40"
+                          : "text-slate-200 text-sm sm:text-base font-semibold hover:text-white hover:bg-slate-800/60"
                     }`}
                   >
-                    {line.text}
+                    <div className="flex items-center gap-3 min-w-0">
+                      {isActive && (
+                        <span className="flex h-2.5 w-2.5 relative flex-shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                      )}
+                      <span className="break-words leading-relaxed">{line.text}</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-950/60 text-slate-400 group-hover:text-emerald-300 opacity-60 group-hover:opacity-100 flex-shrink-0">
+                      {formatTime(line.time)}
+                    </span>
                   </div>
                 );
               })}
@@ -2090,24 +2171,44 @@ export default function Player({ playlist, onRefreshPlaylist }) {
             </h3>
           </div>
           
-          {/* In-Playlist Search Input */}
-          <div className="relative w-full sm:w-64">
-            <input
-              type="text"
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder="Search in this playlist..."
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
-            />
-            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
-            {filterQuery && (
-              <button
-                onClick={() => setFilterQuery("")}
-                className="absolute right-2.5 top-2 text-slate-500 hover:text-white"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          {/* Playlist Controls & In-Playlist Search Input */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={handleShuffle}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition-all active:scale-95 flex-shrink-0"
+              title="Shuffle all songs"
+            >
+              <Shuffle className="w-3.5 h-3.5" />
+              <span>Shuffle</span>
+            </button>
+
+            <button
+              onClick={handleRefreshAll}
+              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold border border-slate-700 flex items-center gap-1.5 transition-all active:scale-95 flex-shrink-0"
+              title="Refresh playlist"
+            >
+              <RotateCw className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Fresh Mix</span>
+            </button>
+
+            <div className="relative w-full sm:w-60">
+              <input
+                type="text"
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                placeholder="Search in this playlist..."
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+              {filterQuery && (
+                <button
+                  onClick={() => setFilterQuery("")}
+                  className="absolute right-2.5 top-2 text-slate-500 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
