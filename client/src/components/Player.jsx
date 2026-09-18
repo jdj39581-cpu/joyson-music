@@ -518,6 +518,8 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   const sleepTimerRef = useRef(null);
   const syncIntervalRef = useRef(null);
   const isDraggingScrubberRef = useRef(false);
+  const lyricsContainerRef = useRef(null);
+  const activeLyricRef = useRef(null);
 
   // Sticky Floating Mini-Player Scroll Observer
   useEffect(() => {
@@ -596,7 +598,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   };
 
-  // High-accuracy time sync for smooth, non-laggy time tracking
+  // High-accuracy time sync (100ms) for ultra-smooth, zero-lag timeline & lyrics tracking
   useEffect(() => {
     syncIntervalRef.current = setInterval(() => {
       if (isDraggingScrubberRef.current) return;
@@ -625,7 +627,7 @@ export default function Player({ playlist, onRefreshPlaylist }) {
           setDuration(audioRef.current.duration);
         }
       }
-    }, 250);
+    }, 100);
 
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
@@ -731,8 +733,6 @@ export default function Player({ playlist, onRefreshPlaylist }) {
   };
 
   // Fetch Live Synchronized Karaoke Lyrics
-  const activeLyricRef = useRef(null);
-
   useEffect(() => {
     if (showLyrics && activeTrack) {
       setLoadingLyrics(true);
@@ -748,16 +748,27 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   }, [showLyrics, activeTrack?.title]);
 
-  // Calculate active lyric line index
-  const activeLyricIndex = lyrics.findIndex((line, idx) => {
-    const nextTime = lyrics[idx + 1]?.time ?? Infinity;
-    return currentTime >= line.time && currentTime < nextTime;
-  });
+  // Robust active lyric line calculation — always active and accurate
+  const activeLyricIndex = (() => {
+    if (!lyrics || lyrics.length === 0) return -1;
+    let active = 0;
+    for (let i = 0; i < lyrics.length; i++) {
+      if (currentTime >= lyrics[i].time) {
+        active = i;
+      } else {
+        break;
+      }
+    }
+    return active;
+  })();
 
-  // Auto-scroll ONLY when active lyric line transitions to a new index (smooth, zero lag!)
+  // Butter-Smooth Auto-Scroll ONLY within lyrics container (Zero page-jump, Zero lag!)
   useEffect(() => {
-    if (showLyrics && activeLyricIndex !== -1 && activeLyricRef.current) {
-      activeLyricRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (showLyrics && activeLyricIndex !== -1 && activeLyricRef.current && lyricsContainerRef.current) {
+      const container = lyricsContainerRef.current;
+      const activeEl = activeLyricRef.current;
+      const targetScroll = activeEl.offsetTop - container.offsetTop - (container.clientHeight / 2) + (activeEl.clientHeight / 2);
+      container.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
     }
   }, [activeLyricIndex, showLyrics]);
 
@@ -1289,15 +1300,15 @@ export default function Player({ playlist, onRefreshPlaylist }) {
             />
 
             <div className={`relative w-64 h-64 sm:w-80 sm:h-80 rounded-full overflow-hidden shadow-2xl border-4 border-slate-700 bg-slate-900 transition-transform duration-700 ${isPlaying ? "scale-105 shadow-emerald-500/40 ring-4 ring-emerald-500/50" : ""}`}>
-              {activeTrack.artworkUrl ? (
                 <img 
-                  src={activeTrack.artworkUrl} 
+                  src={activeTrack.artworkUrl || (activeTrack.youtubeVideoId ? `https://i.ytimg.com/vi/${activeTrack.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80`)} 
                   alt={activeTrack.title} 
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = `https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80`;
+                  }}
                   className={`w-full h-full object-cover transition-all duration-1000 ${isPlaying ? "scale-110 rotate-3" : ""}`} 
                 />
-              ) : (
-                <Disc3 className={`w-full h-full p-16 text-emerald-400 ${isPlaying ? "animate-spin" : ""}`} />
-              )}
             </div>
 
             <div className="space-y-1 max-w-lg">
@@ -1644,17 +1655,15 @@ export default function Player({ playlist, onRefreshPlaylist }) {
             {/* Vinyl Album Art */}
             <div className="relative group flex-shrink-0">
               <div className={`w-36 h-36 sm:w-44 sm:h-44 rounded-3xl overflow-hidden shadow-2xl border-2 border-slate-700 bg-slate-800 transition-transform duration-500 ${isPlaying ? "scale-105 shadow-emerald-500/25 ring-2 ring-emerald-500/50" : ""}`}>
-                {activeTrack.artworkUrl ? (
-                  <img 
-                    src={activeTrack.artworkUrl} 
-                    alt={activeTrack.title} 
-                    className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? "scale-110 rotate-2" : ""}`} 
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-950">
-                    <Disc3 className={`w-16 h-16 text-emerald-400 ${isPlaying ? "animate-spin" : ""}`} />
-                  </div>
-                )}
+                <img 
+                  src={activeTrack.artworkUrl || (activeTrack.youtubeVideoId ? `https://i.ytimg.com/vi/${activeTrack.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80`)} 
+                  alt={activeTrack.title} 
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = `https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80`;
+                  }}
+                  className={`w-full h-full object-cover transition-all duration-700 ${isPlaying ? "scale-110 rotate-2" : ""}`} 
+                />
               </div>
 
               {/* Pulsing play badge */}
@@ -1932,11 +1941,13 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               No lyrics found for this track. Enjoy the instrumental vibe! 🎵
             </div>
           ) : (
-            <div className="space-y-2.5 max-h-80 sm:max-h-[380px] overflow-y-auto pr-2 scrollbar-thin scroll-smooth text-left">
+            <div 
+              ref={lyricsContainerRef}
+              className="space-y-2.5 max-h-80 sm:max-h-[380px] overflow-y-auto pr-2 scrollbar-thin scroll-smooth text-left"
+            >
               {lyrics.map((line, idx) => {
-                const nextLineTime = lyrics[idx + 1]?.time ?? Infinity;
-                const isActive = currentTime >= line.time && (idx === lyrics.length - 1 || currentTime < nextLineTime);
-                const isPast = currentTime >= nextLineTime;
+                const isActive = idx === activeLyricIndex;
+                const isPast = idx < activeLyricIndex;
 
                 return (
                   <div
@@ -2342,16 +2353,16 @@ export default function Player({ playlist, onRefreshPlaylist }) {
 
                     {/* Artwork Thumbnail */}
                     <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      {track.artworkUrl ? (
-                        <img 
-                          src={track.artworkUrl} 
-                          alt={track.title} 
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <Music className="w-5 h-5 text-slate-500" />
-                      )}
+                      <img 
+                        src={track.artworkUrl || (track.youtubeVideoId ? `https://i.ytimg.com/vi/${track.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80`)} 
+                        alt={track.title} 
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = `https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80`;
+                        }}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
 
                       {/* Play Button Overlay */}
                       <div
@@ -2503,11 +2514,15 @@ export default function Player({ playlist, onRefreshPlaylist }) {
               title="Click to expand full player"
             >
               <div className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl overflow-hidden bg-slate-800 border border-slate-700 flex-shrink-0 shadow-md">
-                {activeTrack.artworkUrl ? (
-                  <img src={activeTrack.artworkUrl} alt={activeTrack.title} className="w-full h-full object-cover" />
-                ) : (
-                  <Disc3 className={`w-full h-full p-2 text-emerald-400 ${isPlaying ? "animate-spin" : ""}`} />
-                )}
+                <img 
+                  src={activeTrack.artworkUrl || (activeTrack.youtubeVideoId ? `https://i.ytimg.com/vi/${activeTrack.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&auto=format&fit=crop&q=80`)} 
+                  alt={activeTrack.title} 
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = `https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80`;
+                  }}
+                  className="w-full h-full object-cover" 
+                />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
