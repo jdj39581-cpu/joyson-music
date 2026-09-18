@@ -748,12 +748,18 @@ export default function Player({ playlist, onRefreshPlaylist }) {
     }
   }, [showLyrics, activeTrack?.title]);
 
-  // Auto-scroll active lyric line to center of view as song plays
+  // Calculate active lyric line index
+  const activeLyricIndex = lyrics.findIndex((line, idx) => {
+    const nextTime = lyrics[idx + 1]?.time ?? Infinity;
+    return currentTime >= line.time && currentTime < nextTime;
+  });
+
+  // Auto-scroll ONLY when active lyric line transitions to a new index (smooth, zero lag!)
   useEffect(() => {
-    if (showLyrics && activeLyricRef.current) {
+    if (showLyrics && activeLyricIndex !== -1 && activeLyricRef.current) {
       activeLyricRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [currentTime, showLyrics]);
+  }, [activeLyricIndex, showLyrics]);
 
   const handleSeekToTime = (time) => {
     setCurrentTime(time);
