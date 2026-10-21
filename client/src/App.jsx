@@ -7,9 +7,7 @@ import {
   Library, 
   Plus, 
   Heart, 
-  Compass, 
   Sparkles, 
-  History, 
   AlertCircle, 
   RefreshCw, 
   Smartphone, 
@@ -23,13 +21,15 @@ import {
   Mic, 
   Flame,
   Globe2,
-  Disc3,
-  Music2,
-  Headphones
+  Headphones,
+  Music,
+  FolderPlus,
+  Play
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
 const HISTORY_KEY = "aurabeat_mood_history";
+const PLAYLISTS_KEY = "aurabeat_user_playlists";
 
 const SPOTIFY_PLAYLISTS = [
   { id: "kannada", title: "Kannada Superhits", desc: "Sandalwood Mass DJ Mix", emoji: "🟡", query: "Kannada", color: "from-amber-600 to-red-700", count: "30 tracks" },
@@ -40,6 +40,23 @@ const SPOTIFY_PLAYLISTS = [
   { id: "tamil", title: "Tamil Mass Kuthu", desc: "Kollywood Dance Bangers", emoji: "✨", query: "Tamil", color: "from-orange-600 to-red-700", count: "15 tracks" },
   { id: "punjabi", title: "Punjabi Trap Hits", desc: "Urban Punjabi Hip-Hop DJ", emoji: "👳", query: "Punjabi", color: "from-rose-600 to-amber-700", count: "15 tracks" },
   { id: "english", title: "Global Billboard 50", desc: "Worldwide Synthwave & Pop", emoji: "🇺🇸", query: "English", color: "from-blue-600 to-indigo-700", count: "14 tracks" }
+];
+
+const SPOTIFY_BROWSE_TILES = [
+  { title: "Today's Top Hits", query: "Top Hits", color: "from-emerald-600 to-teal-800", emoji: "🔥" },
+  { title: "Kannada Mass", query: "Kannada", color: "from-amber-600 to-red-700", emoji: "🟡" },
+  { title: "Bollywood Butter", query: "Hindi", color: "from-orange-600 to-rose-700", emoji: "🇮🇳" },
+  { title: "Konkani Baila", query: "Konkani", color: "from-teal-600 to-cyan-800", emoji: "🌴" },
+  { title: "Tollywood Mass", query: "Telugu", color: "from-purple-600 to-pink-700", emoji: "🕺" },
+  { title: "Mollywood Beats", query: "Malayalam", color: "from-emerald-700 to-green-900", emoji: "🥥" },
+  { title: "Kollywood Kuthu", query: "Tamil", color: "from-red-600 to-orange-700", emoji: "✨" },
+  { title: "Punjabi 101", query: "Punjabi", color: "from-pink-600 to-rose-700", emoji: "👳" },
+  { title: "Global Top 50", query: "English", color: "from-blue-600 to-indigo-800", emoji: "🇺🇸" },
+  { title: "Lo-Fi Beats & Chill", query: "Lo-Fi Chill", color: "from-indigo-600 to-purple-800", emoji: "🌙" },
+  { title: "Party DJ Bangers", query: "Party DJ", color: "from-fuchsia-600 to-purple-800", emoji: "⚡" },
+  { title: "Romantic Melodies", query: "Romantic Love", color: "from-rose-600 to-red-800", emoji: "❤️" },
+  { title: "All-Time Classics", query: "Classics", color: "from-amber-700 to-yellow-800", emoji: "⭐" },
+  { title: "Workout Hype", query: "Workout Motivation", color: "from-orange-700 to-red-900", emoji: "💪" }
 ];
 
 const LANGUAGES = [
@@ -65,23 +82,32 @@ export default function App() {
   const [showMobileModal, setShowMobileModal] = useState(false);
   const [mobileUrl, setMobileUrl] = useState("http://192.168.1.105:5173");
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [activeTab, setActiveTab] = useState("home"); // "home" | "search" | "library" | "liked"
+  const [activeTab, setActiveTab] = useState("home"); // "home" | "search" | "library"
   const [isListening, setIsListening] = useState(false);
+
+  // User Custom Playlists State
+  const [userPlaylists, setUserPlaylists] = useState(() => {
+    try {
+      const saved = localStorage.getItem(PLAYLISTS_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
+  const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
+  const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(HISTORY_KEY);
-      if (saved) {
-        setHistory(JSON.parse(saved));
-      }
+      if (saved) setHistory(JSON.parse(saved));
     } catch (e) {}
 
     fetch("/api/network-info")
       .then(res => res.json())
       .then(data => {
-        if (data.mobileUrl) {
-          setMobileUrl(data.mobileUrl);
-        }
+        if (data.mobileUrl) setMobileUrl(data.mobileUrl);
       })
       .catch(() => {});
 
@@ -97,10 +123,70 @@ export default function App() {
     } catch (e) {}
   };
 
+  const saveUserPlaylists = (updated) => {
+    setUserPlaylists(updated);
+    try {
+      localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  const handleCreatePlaylist = (e) => {
+    e?.preventDefault();
+    const title = newPlaylistTitle.trim() || `My Playlist #${userPlaylists.length + 1}`;
+    const newPl = {
+      id: `custom_${Date.now()}`,
+      title,
+      description: newPlaylistDesc.trim() || "Created on AuraBeat Spotify",
+      emoji: "🎵",
+      color: "from-emerald-600 to-slate-900",
+      tracks: []
+    };
+    const updated = [newPl, ...userPlaylists];
+    saveUserPlaylists(updated);
+    setNewPlaylistTitle("");
+    setNewPlaylistDesc("");
+    setShowCreatePlaylistModal(false);
+    handleSelectCustomPlaylist(newPl);
+  };
+
+  const handleSelectCustomPlaylist = (customPl) => {
+    setSelectedSidebarId(customPl.id);
+    setActiveTab("home");
+    setPlaylist({
+      mood: customPl.title,
+      vibeTitle: customPl.title,
+      vibeDescription: customPl.description || "Your custom Spotify playlist",
+      emoji: customPl.emoji || "🎵",
+      genre: "Custom Playlist",
+      energy: "Personal Mix",
+      colorTheme: ["#1ed760", "#121212"],
+      spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(customPl.title)}`,
+      tracks: customPl.tracks || []
+    });
+  };
+
+  const handleAddTrackToPlaylist = (playlistId, track) => {
+    let targetTitle = "Playlist";
+    const updated = userPlaylists.map(pl => {
+      if (pl.id === playlistId) {
+        targetTitle = pl.title;
+        const exists = pl.tracks.some(t => t.title.toLowerCase() === track.title.toLowerCase());
+        if (exists) return pl;
+        return { ...pl, tracks: [track, ...pl.tracks] };
+      }
+      return pl;
+    });
+    saveUserPlaylists(updated);
+    if (selectedSidebarId === playlistId) {
+      setPlaylist(prev => prev ? { ...prev, tracks: [track, ...(prev.tracks || []).filter(t => t.title.toLowerCase() !== track.title.toLowerCase())] } : prev);
+    }
+  };
+
   const handleMoodSubmit = async (mood, shouldSaveHistory = true) => {
     setLoading(true);
     setError(null);
     setLastMood(mood);
+    setActiveTab("home");
 
     try {
       const response = await fetch("/api/playlist", {
@@ -185,6 +271,62 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden font-sans selection:bg-[#1ed760] selection:text-black">
+      {/* Create Playlist Modal */}
+      {showCreatePlaylistModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#282828] border border-[#3e3e3e] rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-[#3e3e3e]">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FolderPlus className="w-5 h-5 text-[#1ed760]" />
+                <span>Create New Playlist</span>
+              </h3>
+              <button onClick={() => setShowCreatePlaylistModal(false)} className="text-[#b3b3b3] hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleCreatePlaylist} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-[#b3b3b3]">Playlist Name</label>
+                <input
+                  type="text"
+                  autoFocus
+                  required
+                  value={newPlaylistTitle}
+                  onChange={(e) => setNewPlaylistTitle(e.target.value)}
+                  placeholder={`My Playlist #${userPlaylists.length + 1}`}
+                  className="w-full mt-1 px-3 py-2 bg-[#181818] border border-[#3e3e3e] rounded-lg text-sm text-white focus:outline-none focus:border-[#1ed760]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#b3b3b3]">Description (optional)</label>
+                <input
+                  type="text"
+                  value={newPlaylistDesc}
+                  onChange={(e) => setNewPlaylistDesc(e.target.value)}
+                  placeholder="Give your playlist a vibe description..."
+                  className="w-full mt-1 px-3 py-2 bg-[#181818] border border-[#3e3e3e] rounded-lg text-sm text-white focus:outline-none focus:border-[#1ed760]"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePlaylistModal(false)}
+                  className="px-4 py-2 rounded-full text-xs font-bold text-[#b3b3b3] hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-full text-xs font-bold bg-[#1ed760] text-black hover:scale-105 transition-all shadow-md"
+                >
+                  Create
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Mobile QR Modal */}
       {showMobileModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200">
@@ -223,7 +365,7 @@ export default function App() {
             </div>
 
             <p className="text-[11px] text-[#b3b3b3]">
-              Scan with your phone camera or open the URL in your mobile browser.
+              Plays smoothly in background even when your phone screen is off!
             </p>
           </div>
         </div>
@@ -231,10 +373,10 @@ export default function App() {
 
       {/* Main Spotify Shell Layout (Left Sidebar + Center Viewport) */}
       <div className="flex-1 flex gap-2 p-2 min-h-0 overflow-hidden">
-        {/* Left Spotify Navigation & Library Sidebar */}
+        {/* Left Spotify Navigation & Library Sidebar (Desktop) */}
         <aside className="w-64 sm:w-72 lg:w-80 bg-[#121212] rounded-xl flex flex-col p-3 gap-3 flex-shrink-0 hidden md:flex border border-[#282828]/50">
           {/* Top Spotify Brand & Navigation Card */}
-          <div className="bg-[#181818]/60 rounded-xl p-3 space-y-3">
+          <div className="bg-[#181818]/70 rounded-xl p-3 space-y-3">
             {/* Spotify Brand Logo */}
             <div className="flex items-center gap-2.5 px-2 py-1">
               <div className="w-8 h-8 rounded-full bg-[#1ed760] flex items-center justify-center text-black shadow-lg shadow-[#1ed760]/30 flex-shrink-0">
@@ -244,12 +386,12 @@ export default function App() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-base font-extrabold text-white tracking-tight">Spotify</span>
                   <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-[#1ed760]/20 text-[#1ed760] font-bold uppercase tracking-wider">
-                    HD VIP
+                    VIP
                   </span>
                 </div>
                 <div className="text-[10px] text-[#b3b3b3] font-medium flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3 text-[#1ed760]" />
-                  <span>100% Ad-Free • Lossless</span>
+                  <span>100% Free • All Songs</span>
                 </div>
               </div>
             </div>
@@ -280,42 +422,43 @@ export default function App() {
                 }`}
               >
                 <Search className="w-4 h-4 text-[#b3b3b3]" />
-                <span>Search Moods & Songs</span>
+                <span>Search Any Song</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab("library")}
+                className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl font-bold text-xs transition-all ${
+                  activeTab === "library" ? "text-white bg-[#282828]" : "text-[#b3b3b3] hover:text-white hover:bg-[#282828]/50"
+                }`}
+              >
+                <Library className="w-4 h-4 text-[#1ed760]" />
+                <span>Your Library</span>
               </button>
             </nav>
           </div>
 
           {/* "Your Library" Card */}
-          <div className="flex-1 bg-[#181818]/40 rounded-xl p-3 flex flex-col min-h-0 overflow-hidden border border-[#282828]/30">
+          <div className="flex-1 bg-[#181818]/50 rounded-xl p-3 flex flex-col min-h-0 overflow-hidden border border-[#282828]/30">
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#282828]/60">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#b3b3b3] hover:text-white transition-colors cursor-pointer">
+              <div 
+                onClick={() => setActiveTab("library")}
+                className="flex items-center gap-2 text-xs font-bold text-[#b3b3b3] hover:text-white transition-colors cursor-pointer"
+              >
                 <Library className="w-4 h-4 text-[#1ed760]" />
-                <span>Your Library</span>
+                <span>Playlists</span>
               </div>
               <button
-                onClick={() => handleMoodSubmit("Trending Top Hits")}
-                className="p-1 text-[#b3b3b3] hover:text-white hover:bg-[#282828] rounded-lg transition-all"
-                title="Create / Fresh Mix"
+                onClick={() => setShowCreatePlaylistModal(true)}
+                className="p-1.5 text-[#b3b3b3] hover:text-white hover:bg-[#282828] rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold"
+                title="Create New Playlist"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-4 h-4 text-[#1ed760]" />
+                <span>New</span>
               </button>
             </div>
 
-            {/* Library Filter Pills */}
-            <div className="flex items-center gap-1.5 pb-2 overflow-x-auto scrollbar-none">
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#282828] text-white whitespace-nowrap">
-                Playlists
-              </span>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#1a1a1a] text-[#b3b3b3] hover:text-white hover:bg-[#282828] whitespace-nowrap cursor-pointer">
-                8 Languages
-              </span>
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#1a1a1a] text-[#b3b3b3] hover:text-white hover:bg-[#282828] whitespace-nowrap cursor-pointer">
-                DJ Mixes
-              </span>
-            </div>
-
             {/* Scrollable Playlists List */}
-            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
               {/* Liked Songs Playlist Item */}
               <div
                 onClick={() => {
@@ -338,7 +481,30 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 8 Regional Playlists */}
+              {/* User Custom Created Playlists */}
+              {userPlaylists.map((pl) => (
+                <div
+                  key={pl.id}
+                  onClick={() => handleSelectCustomPlaylist(pl)}
+                  className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all group ${
+                    selectedSidebarId === pl.id ? "bg-[#282828] border-l-4 border-[#1ed760]" : "hover:bg-[#282828]/60"
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-white font-bold flex-shrink-0 shadow-md">
+                    {pl.emoji || "🎵"}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className={`text-xs font-bold truncate ${selectedSidebarId === pl.id ? "text-[#1ed760]" : "text-white group-hover:text-[#1ed760]"}`}>
+                      {pl.title}
+                    </div>
+                    <div className="text-[11px] text-[#b3b3b3] truncate">
+                      Playlist • {pl.tracks?.length || 0} songs
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* 8 Regional Curated Playlists */}
               {SPOTIFY_PLAYLISTS.map((pl) => {
                 const isSelected = selectedSidebarId === pl.id || (lastMood.toLowerCase().includes(pl.query.toLowerCase()));
                 return (
@@ -393,7 +559,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Center: Spotify Pill Search Bar + Voice Mic */}
+            {/* Center: Spotify Pill Search Bar (Searches all 100M+ songs) */}
             <form onSubmit={handleSearchSubmit} className="flex-1 max-w-md relative flex items-center">
               <div className="relative w-full flex items-center">
                 <Search className="w-4 h-4 text-[#b3b3b3] absolute left-3.5 pointer-events-none" />
@@ -402,7 +568,7 @@ export default function App() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={selectedLang ? `Search in ${selectedLang} (e.g. party dj, romantic, mass)...` : "What do you want to play? (Songs, Artists, Moods)..."}
+                  placeholder="What do you want to play? (Any song, artist, album, mood)..."
                   className="w-full pl-10 pr-20 py-2 bg-[#242424] hover:bg-[#2a2a2a] focus:bg-[#2a2a2a] border border-transparent focus:border-white/20 rounded-full text-xs sm:text-sm text-white placeholder-[#757575] focus:outline-none transition-all"
                 />
                 
@@ -431,7 +597,7 @@ export default function App() {
 
             {/* Right: Language Quick Filter Chips + Phone Connect */}
             <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Language Pills for Fast Switching */}
+              {/* Quick Language Chips */}
               <div className="hidden xl:flex items-center gap-1">
                 {LANGUAGES.slice(0, 5).map((l, i) => (
                   <button
@@ -492,45 +658,165 @@ export default function App() {
               ))}
             </div>
 
-            {/* Loading State */}
-            {loading && (
-              <div className="w-full py-20 flex flex-col items-center justify-center space-y-4 bg-[#181818]/60 rounded-3xl border border-[#282828]">
-                <div className="w-12 h-12 rounded-full border-4 border-[#1ed760]/20 border-t-[#1ed760] animate-spin" />
-                <div className="text-center space-y-1">
-                  <h3 className="text-base sm:text-lg font-bold text-white">Loading Spotify Master Playlist…</h3>
-                  <p className="text-xs text-[#b3b3b3]">Curating top blockbuster songs with full synchronized lyrics...</p>
+            {/* TAB 1: SEARCH / BROWSE CATEGORIES (When activeTab === "search") */}
+            {activeTab === "search" && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <h2 className="text-xl sm:text-2xl font-black text-white">Browse All Spotify Categories</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                  {SPOTIFY_BROWSE_TILES.map((tile, i) => (
+                    <div
+                      key={i}
+                      onClick={() => handleMoodSubmit(tile.query)}
+                      className={`relative h-28 sm:h-36 rounded-2xl p-4 bg-gradient-to-br ${tile.color} cursor-pointer hover:scale-[1.02] active:scale-95 transition-all shadow-lg overflow-hidden flex flex-col justify-between group`}
+                    >
+                      <h3 className="text-sm sm:text-base font-extrabold text-white leading-tight">
+                        {tile.title}
+                      </h3>
+                      <span className="text-3xl sm:text-4xl self-end transform group-hover:rotate-12 group-hover:scale-110 transition-transform">
+                        {tile.emoji}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* Error Banner */}
-            {error && !loading && (
-              <div className="w-full p-4 bg-rose-950/60 border border-rose-800 rounded-2xl flex items-center justify-between gap-4 text-rose-300 text-xs sm:text-sm">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-                {lastMood && (
+            {/* TAB 2: YOUR LIBRARY VIEW (When activeTab === "library") */}
+            {activeTab === "library" && (
+              <div className="space-y-5 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl sm:text-2xl font-black text-white">Your Music Library</h2>
                   <button
-                    onClick={() => handleMoodSubmit(lastMood)}
-                    className="px-3.5 py-1.5 bg-rose-900 hover:bg-rose-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                    onClick={() => setShowCreatePlaylistModal(true)}
+                    className="px-4 py-2 bg-[#1ed760] text-black rounded-full font-bold text-xs flex items-center gap-1.5 shadow-md hover:scale-105 transition-all"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Retry</span>
+                    <Plus className="w-4 h-4" />
+                    <span>Create Playlist</span>
                   </button>
-                )}
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                  {/* Liked Songs Big Card */}
+                  <div
+                    onClick={() => {
+                      setActiveTab("home");
+                      const likedBtn = document.getElementById("spotify-liked-filter-btn");
+                      if (likedBtn) likedBtn.click();
+                    }}
+                    className="col-span-2 p-5 rounded-2xl bg-gradient-to-br from-[#450af5] to-[#8e8ee5] text-white flex flex-col justify-end cursor-pointer hover:scale-[1.01] transition-transform shadow-xl min-h-[140px]"
+                  >
+                    <Heart className="w-8 h-8 fill-white mb-2" />
+                    <h3 className="text-lg font-black">Liked Songs</h3>
+                    <p className="text-xs text-white/80">Auto-saved favorite songs</p>
+                  </div>
+
+                  {/* User Created Playlists */}
+                  {userPlaylists.map((pl) => (
+                    <div
+                      key={pl.id}
+                      onClick={() => handleSelectCustomPlaylist(pl)}
+                      className="p-4 rounded-2xl bg-[#181818] hover:bg-[#282828] border border-[#282828] cursor-pointer transition-all flex flex-col justify-between group"
+                    >
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center text-xl mb-3 shadow-md">
+                        {pl.emoji || "🎵"}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white truncate group-hover:text-[#1ed760]">
+                          {pl.title}
+                        </h4>
+                        <p className="text-xs text-[#b3b3b3] truncate mt-0.5">
+                          {pl.tracks?.length || 0} songs
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Player Component */}
-            {playlist && !loading && (
-              <Player 
-                playlist={playlist} 
-                onRefreshPlaylist={handleMoodSubmit}
-                onSelectLanguage={handleLanguageSelect}
-              />
+            {/* TAB 3: HOME / ACTIVE PLAYLIST VIEW */}
+            {activeTab === "home" && (
+              <>
+                {/* Loading State */}
+                {loading && (
+                  <div className="w-full py-20 flex flex-col items-center justify-center space-y-4 bg-[#181818]/60 rounded-3xl border border-[#282828]">
+                    <div className="w-12 h-12 rounded-full border-4 border-[#1ed760]/20 border-t-[#1ed760] animate-spin" />
+                    <div className="text-center space-y-1">
+                      <h3 className="text-base sm:text-lg font-bold text-white">Loading Spotify Master Playlist…</h3>
+                      <p className="text-xs text-[#b3b3b3]">Curating top blockbuster songs with full synchronized lyrics...</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Banner */}
+                {error && !loading && (
+                  <div className="w-full p-4 bg-rose-950/60 border border-rose-800 rounded-2xl flex items-center justify-between gap-4 text-rose-300 text-xs sm:text-sm">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                    {lastMood && (
+                      <button
+                        onClick={() => handleMoodSubmit(lastMood)}
+                        className="px-3.5 py-1.5 bg-rose-900 hover:bg-rose-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Retry</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Player Component */}
+                {playlist && !loading && (
+                  <Player 
+                    playlist={playlist} 
+                    userPlaylists={userPlaylists}
+                    onRefreshPlaylist={handleMoodSubmit}
+                    onSelectLanguage={handleLanguageSelect}
+                    onAddTrackToPlaylist={handleAddTrackToPlaylist}
+                    onCreatePlaylist={() => setShowCreatePlaylistModal(true)}
+                  />
+                )}
+              </>
             )}
           </div>
+
+          {/* Mobile Bottom Navigation Bar (Hidden on Desktop) */}
+          <nav className="md:hidden h-16 bg-[#121212]/95 backdrop-blur-lg border-t border-[#282828] flex items-center justify-around z-30 flex-shrink-0 px-2">
+            <button
+              onClick={() => setActiveTab("home")}
+              className={`flex flex-col items-center gap-1 ${activeTab === "home" ? "text-[#1ed760]" : "text-[#b3b3b3]"}`}
+            >
+              <Home className="w-5 h-5" />
+              <span className="text-[10px] font-bold">Home</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("search");
+                const searchInput = document.getElementById("spotify-search-input");
+                if (searchInput) searchInput.focus();
+              }}
+              className={`flex flex-col items-center gap-1 ${activeTab === "search" ? "text-[#1ed760]" : "text-[#b3b3b3]"}`}
+            >
+              <Search className="w-5 h-5" />
+              <span className="text-[10px] font-bold">Search</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("library")}
+              className={`flex flex-col items-center gap-1 ${activeTab === "library" ? "text-[#1ed760]" : "text-[#b3b3b3]"}`}
+            >
+              <Library className="w-5 h-5" />
+              <span className="text-[10px] font-bold">Your Library</span>
+            </button>
+            <button
+              onClick={() => setShowMobileModal(true)}
+              className="flex flex-col items-center gap-1 text-[#b3b3b3]"
+            >
+              <QrCode className="w-5 h-5 text-[#1ed760]" />
+              <span className="text-[10px] font-bold">Phone App</span>
+            </button>
+          </nav>
         </main>
       </div>
     </div>

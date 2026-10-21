@@ -1329,10 +1329,10 @@ function detectLanguage(query = '') {
 /**
  * Fast search from global catalog (Apple Music/iTunes API with 100M+ songs)
  */
-async function searchLiveMusicCatalog(query, country = 'IN', limit = 20) {
+async function searchLiveMusicCatalog(query, country = 'IN', limit = 40) {
   try {
     const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&country=${country}&entity=song&limit=${limit}`;
-    const res = await axios.get(url, { timeout: 1800 });
+    const res = await axios.get(url, { timeout: 3500 });
     const results = res.data?.results || [];
 
     return results.map(r => {
@@ -2879,9 +2879,35 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
     };
   }
 
-  // 2. Custom Artist, Movie, or Mood Search from Global Catalog
-  const liveResults = await searchLiveMusicCatalog(mood, 'IN', 30);
-  const baseTracks = liveResults.length >= 10 ? liveResults : SONG_DATABASE.english;
+  // 2. Custom Artist, Song, Movie, or Mood Search from 100M+ Global & Curated Catalog
+  const lowerMood = mood.toLowerCase().trim();
+  
+  // Search local curated blockbuster database for matches in title or artist
+  let localMatches = [];
+  for (const lang of Object.keys(SONG_DATABASE)) {
+    const matched = SONG_DATABASE[lang].filter(s => 
+      s.title.toLowerCase().includes(lowerMood) || 
+      s.artist.toLowerCase().includes(lowerMood)
+    );
+    if (matched.length > 0) {
+      localMatches.push(...matched);
+    }
+  }
+
+  // Search live global Apple Music catalog (IN storefront + US storefront)
+  const liveResultsIN = await searchLiveMusicCatalog(mood, 'IN', 35);
+  let liveResultsUS = [];
+  if (liveResultsIN.length < 15) {
+    liveResultsUS = await searchLiveMusicCatalog(mood, 'US', 25);
+  }
+
+  // Combine local high-priority matches with live catalog results
+  let baseTracks = deduplicateTracks([...localMatches, ...liveResultsIN, ...liveResultsUS]);
+  
+  // If no direct results found, provide popular party mix
+  if (baseTracks.length === 0) {
+    baseTracks = SONG_DATABASE.hindi;
+  }
   
   let sortedFinal;
   if (options.shuffle) {
@@ -2898,11 +2924,11 @@ async function analyzeMoodAndRecommend(mood, options = {}) {
 
   return {
     vibeTitle: `${mood.charAt(0).toUpperCase() + mood.slice(1)} Mix`,
-    vibeDescription: `Soundscape crafted for "${mood}".`,
+    vibeDescription: `Full Spotify-style playlist for "${mood}".`,
     emoji: '🎵✨',
-    genre: 'Music Collection',
-    energy: '95% Vibrant',
-    colorTheme: ['#6366f1', '#a855f7'],
+    genre: 'Spotify Collection',
+    energy: '98% High Energy',
+    colorTheme: ['#1ed760', '#121212'],
     spotifySearchQuery: mood,
     playlistEmbedId: POPULAR_PLAYLIST_FALLBACKS.chill,
     spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(mood)}`,
@@ -2924,8 +2950,8 @@ async function getMoreTracks(mood, existingTitles = []) {
     newTracks = allInLang.filter(s => !isDuplicate(s.title, normalizedExisting));
   }
 
-  if (newTracks.length < 5) {
-    const liveResults = await searchLiveMusicCatalog(`${mood} songs`, 'IN', 25);
+  if (newTracks.length < 10) {
+    const liveResults = await searchLiveMusicCatalog(`${mood} songs`, 'IN', 30);
     const unplayed = liveResults.filter(s => !isDuplicate(s.title, normalizedExisting));
     newTracks = [...newTracks, ...unplayed];
   }
@@ -2938,5 +2964,7 @@ module.exports = {
   getMoreTracks,
   fetchRealTrackAudio,
   getCandidateVideoIds,
-  fetchTrackLyrics
+  fetchTrackLyrics,
+  searchLiveMusicCatalog,
+  SONG_DATABASE
 };

@@ -5,7 +5,15 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const os = require('os');
 const path = require('path');
-const { analyzeMoodAndRecommend, getMoreTracks, getCandidateVideoIds, fetchRealTrackAudio, fetchTrackLyrics } = require('./moodService');
+const { 
+  analyzeMoodAndRecommend, 
+  getMoreTracks, 
+  getCandidateVideoIds, 
+  fetchRealTrackAudio, 
+  fetchTrackLyrics,
+  searchLiveMusicCatalog,
+  SONG_DATABASE 
+} = require('./moodService');
 const { getAccessToken } = require('./spotify');
 
 const app = express();
@@ -74,6 +82,32 @@ app.get('/api/candidate-videos', async (req, res) => {
     res.json({ videoIds, videoId: videoIds[0] || null });
   } catch (err) {
     res.status(500).json({ error: 'Could not fetch candidate video IDs' });
+  }
+});
+
+// Live search endpoint across 100M+ global & curated catalog
+app.get('/api/search', async (req, res) => {
+  const { q } = req.query;
+  if (!q || !q.trim()) return res.json({ results: [] });
+
+  try {
+    const query = q.trim().toLowerCase();
+    const local = [];
+    for (const lang of Object.keys(SONG_DATABASE)) {
+      for (const s of SONG_DATABASE[lang]) {
+        if (s.title.toLowerCase().includes(query) || s.artist.toLowerCase().includes(query)) {
+          local.push(s);
+          if (local.length >= 10) break;
+        }
+      }
+      if (local.length >= 10) break;
+    }
+
+    const live = await searchLiveMusicCatalog(query, 'IN', 20);
+    const combined = [...local, ...live];
+    res.json({ results: combined.slice(0, 25) });
+  } catch (err) {
+    res.status(500).json({ error: 'Search failed' });
   }
 });
 
