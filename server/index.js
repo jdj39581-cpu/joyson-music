@@ -25,6 +25,7 @@ const {
 } = require('./spotify');
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -93,21 +94,40 @@ app.get('/api/candidate-videos', async (req, res) => {
   }
 });
 
+// Helper to reliably construct or override Spotify OAuth Redirect URI
+function resolveSpotifyRedirectUri(req) {
+  if (process.env.SPOTIFY_REDIRECT_URI && process.env.SPOTIFY_REDIRECT_URI.trim()) {
+    return process.env.SPOTIFY_REDIRECT_URI.trim();
+  }
+  const protoHeader = req.headers['x-forwarded-proto'];
+  const host = req.get('host') || 'joyson-music.onrender.com';
+  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+  const protocol = isLocal ? 'http' : (protoHeader ? protoHeader.split(',')[0].trim() : req.protocol || 'https');
+  return `${protocol}://${host}/api/spotify/callback`;
+}
+
+// Spotify OAuth Configuration Info Endpoint (used by frontend to show exact callback URL)
+app.get('/api/spotify/config', (req, res) => {
+  const redirectUri = resolveSpotifyRedirectUri(req);
+  const clientId = process.env.SPOTIFY_CLIENT_ID || '83259f32ab8246e5b33fd0b0789437b2';
+  res.json({
+    clientId,
+    redirectUri,
+    dashboardUrl: `https://developer.spotify.com/dashboard`
+  });
+});
+
 // Spotify Account OAuth Login
 app.get('/api/spotify/login', (req, res) => {
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.get('host');
-  const redirectUri = `${protocol}://${host}/api/spotify/callback`;
+  const redirectUri = resolveSpotifyRedirectUri(req);
   const url = getSpotifyAuthUrl(redirectUri);
   res.redirect(url);
 });
 
-// Spotify OAuth Callback
-app.get('/api/spotify/callback', async (req, res) => {
+// Spotify OAuth Callback Handler
+const handleSpotifyCallbackRoute = async (req, res) => {
   const { code, error } = req.query;
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-  const host = req.get('host');
-  const redirectUri = `${protocol}://${host}/api/spotify/callback`;
+  const redirectUri = resolveSpotifyRedirectUri(req);
 
   if (error || !code) {
     return res.redirect('/?spotify_error=' + encodeURIComponent(error || 'Authorization denied'));
@@ -129,7 +149,10 @@ app.get('/api/spotify/callback', async (req, res) => {
     console.error('Spotify callback error:', err.response?.data || err.message);
     res.redirect('/?spotify_error=Failed to link Spotify account');
   }
-});
+};
+
+app.get('/api/spotify/callback', handleSpotifyCallbackRoute);
+app.get('/callback', handleSpotifyCallbackRoute);
 
 // Import ANY Spotify Playlist by URL or ID (Public / User shared playlist)
 app.post('/api/spotify/import', async (req, res) => {

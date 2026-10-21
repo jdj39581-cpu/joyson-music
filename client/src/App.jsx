@@ -128,6 +128,7 @@ export default function App() {
   const [spotifyImportUrl, setSpotifyImportUrl] = useState("");
   const [importingSpotify, setImportingSpotify] = useState(false);
   const [spotifyImportError, setSpotifyImportError] = useState(null);
+  const [copiedRedirectUri, setCopiedRedirectUri] = useState(false);
 
   // Parse Spotify OAuth callback on load
   useEffect(() => {
@@ -155,9 +156,10 @@ export default function App() {
     }
   }, []);
 
-  const handleImportSpotifyPlaylist = async (e) => {
+  const handleImportSpotifyPlaylist = async (e, overrideUrl) => {
     e?.preventDefault();
-    if (!spotifyImportUrl.trim() || importingSpotify) return;
+    const targetUrl = (overrideUrl || spotifyImportUrl).trim();
+    if (!targetUrl || importingSpotify) return;
 
     setImportingSpotify(true);
     setSpotifyImportError(null);
@@ -166,7 +168,7 @@ export default function App() {
       const res = await fetch("/api/spotify/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: spotifyImportUrl.trim() })
+        body: JSON.stringify({ url: targetUrl })
       });
 
       if (!res.ok) {
@@ -486,16 +488,16 @@ export default function App() {
 
       {/* Connect Spotify Account & Import Playlist Modal */}
       {showSpotifyModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#181818] border border-[#282828] rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 relative">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-[#181818] border border-[#282828] rounded-3xl p-5 sm:p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto scrollbar-thin shadow-2xl space-y-4 relative">
             <div className="flex items-center justify-between pb-3 border-b border-[#282828]">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-[#1ed760] text-black flex items-center justify-center shadow-lg shadow-[#1ed760]/20">
+                <div className="w-8 h-8 rounded-full bg-[#1ed760] text-black flex items-center justify-center shadow-lg shadow-[#1ed760]/20 flex-shrink-0">
                   <SpotifyIcon className="w-4 h-4 fill-black" />
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-white">Spotify Account & Playlists</h3>
-                  <p className="text-[11px] text-[#b3b3b3]">Connect your account or import any playlist</p>
+                  <p className="text-[11px] text-[#b3b3b3]">Connect your account or import any Spotify playlist</p>
                 </div>
               </div>
               <button 
@@ -506,17 +508,93 @@ export default function App() {
               </button>
             </div>
 
-            {/* Spotify Account Status Section */}
+            {/* SECTION 1: Direct Spotify Playlist URL Importer (Instant & Works 100% Without Any Dashboard Setup) */}
+            <div className="p-4 bg-[#242424] rounded-2xl border border-[#1ed760]/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#1ed760]" />
+                  <span>Instant Playlist Import (Zero Setup)</span>
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1ed760]/20 text-[#1ed760] font-bold border border-[#1ed760]/30">
+                  100% Free
+                </span>
+              </div>
+              <p className="text-[11px] text-[#b3b3b3]">
+                Paste any Spotify playlist link below to import all songs, artwork, and lyrics instantly into AuraBeat:
+              </p>
+
+              <form onSubmit={handleImportSpotifyPlaylist} className="space-y-3">
+                <input
+                  type="text"
+                  value={spotifyImportUrl}
+                  onChange={(e) => setSpotifyImportUrl(e.target.value)}
+                  placeholder="https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
+                  className="w-full px-3.5 py-2.5 bg-[#181818] border border-[#3e3e3e] focus:border-[#1ed760] rounded-xl text-xs text-white placeholder-[#757575] focus:outline-none transition-all"
+                />
+
+                {spotifyImportError && (
+                  <p className="text-xs text-red-400 bg-red-950/50 p-2 rounded-lg border border-red-900/50">
+                    {spotifyImportError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={importingSpotify || !spotifyImportUrl.trim()}
+                  className="w-full py-2.5 px-4 bg-[#1ed760] hover:bg-[#1fdf64] disabled:opacity-50 text-black font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all"
+                >
+                  {importingSpotify ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-black" />
+                      <span>Importing Spotify Tracks & Artwork...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 text-black stroke-[3]" />
+                      <span>Import Playlist to Library</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Quick 1-Click Popular Spotify Playlist Pills */}
+              <div className="pt-2 border-t border-white/5 space-y-1.5">
+                <span className="text-[10px] font-bold text-[#888] uppercase tracking-wider">Or try 1-click popular playlists:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { name: "🔥 Today's Top Hits", url: "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M" },
+                    { name: "🌍 Global Top 50", url: "https://open.spotify.com/playlist/37i9dQZEVXbMDoHDwVN2tF" },
+                    { name: "🇮🇳 Bollywood Hits", url: "https://open.spotify.com/playlist/37i9dQZF1DX0XUfTFmNBRM" },
+                    { name: "🟡 Kannada Mass", url: "https://open.spotify.com/playlist/37i9dQZF1DX6Thddij2336" }
+                  ].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      disabled={importingSpotify}
+                      onClick={() => {
+                        setSpotifyImportUrl(preset.url);
+                        handleImportSpotifyPlaylist(null, preset.url);
+                      }}
+                      className="px-2.5 py-1 bg-[#181818] hover:bg-[#282828] border border-white/10 hover:border-[#1ed760]/50 rounded-full text-[11px] font-bold text-white transition-all disabled:opacity-50"
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* SECTION 2: Official Spotify Account OAuth Connection */}
             <div className="p-4 bg-[#242424] rounded-2xl border border-white/5 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">Account Sync</span>
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Official Spotify Account Login</span>
                 {spotifyUser ? (
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1ed760]/20 text-[#1ed760] font-bold border border-[#1ed760]/30 flex items-center gap-1">
                     <Check className="w-3 h-3" /> Connected
                   </span>
                 ) : (
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#b3b3b3] font-bold">
-                    Not Linked
+                    OAuth
                   </span>
                 )}
               </div>
@@ -551,65 +629,60 @@ export default function App() {
               ) : (
                 <div className="space-y-3">
                   <p className="text-xs text-[#b3b3b3] leading-relaxed">
-                    Log in with your official Spotify account to instantly load all your personal Spotify playlists into AuraBeat for unlimited free playback.
+                    Log in with your official Spotify account to sync your private playlists and library.
                   </p>
                   <button
                     onClick={() => { window.location.href = '/api/spotify/login'; }}
-                    className="w-full py-2.5 px-4 bg-[#1ed760] hover:bg-[#1fdf64] text-black font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                    className="w-full py-2.5 px-4 bg-white hover:bg-white/90 text-black font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
                   >
                     <SpotifyIcon className="w-4 h-4 fill-black" />
                     <span>Connect Official Spotify Account</span>
                   </button>
+
+                  {/* Fix "redirect_uri: Not matching configuration" explanation box */}
+                  <div className="p-3 bg-[#181818] rounded-xl border border-amber-500/30 text-left space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <span>Fixing "redirect_uri: Not matching configuration"</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-[#b3b3b3] leading-normal">
+                      Spotify requires that you paste this exact Callback URL into your Spotify Developer App settings:
+                    </p>
+                    <div className="flex items-center gap-1.5 bg-black p-2 rounded-lg border border-white/10">
+                      <code className="text-[11px] text-[#1ed760] font-mono flex-1 truncate select-all">
+                        {typeof window !== 'undefined' ? `${window.location.origin}/api/spotify/callback` : "https://joyson-music.onrender.com/api/spotify/callback"}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `${window.location.origin}/api/spotify/callback`;
+                          navigator.clipboard.writeText(url);
+                          setCopiedRedirectUri(true);
+                          setTimeout(() => setCopiedRedirectUri(false), 2000);
+                        }}
+                        className="px-2.5 py-1 bg-[#282828] hover:bg-[#333] text-white rounded-md text-[10px] font-bold flex items-center gap-1 flex-shrink-0"
+                      >
+                        {copiedRedirectUri ? <Check className="w-3 h-3 text-[#1ed760]" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedRedirectUri ? "Copied" : "Copy URI"}</span>
+                      </button>
+                    </div>
+                    <div className="text-[11px] text-[#888] space-y-1 pt-1">
+                      <p><b>Quick 3-step fix:</b></p>
+                      <ol className="list-decimal list-inside space-y-0.5 pl-1">
+                        <li>Open <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noreferrer" className="text-[#1ed760] hover:underline font-bold">Spotify Developer Dashboard ↗</a></li>
+                        <li>Click your App &gt; <b>Settings</b> &gt; find <b>Redirect URIs</b></li>
+                        <li>Paste the URI above, click <b>Add</b>, and click <b>Save</b> at the bottom!</li>
+                      </ol>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Direct Spotify Playlist URL Importer Section */}
-            <div className="p-4 bg-[#242424] rounded-2xl border border-white/5 space-y-3">
-              <div>
-                <span className="text-xs font-bold text-white uppercase tracking-wider">Import Any Spotify Playlist</span>
-                <p className="text-[11px] text-[#b3b3b3] mt-0.5">
-                  Paste any public Spotify playlist URL or Spotify URI link below
-                </p>
-              </div>
-
-              <form onSubmit={handleImportSpotifyPlaylist} className="space-y-3">
-                <input
-                  type="text"
-                  value={spotifyImportUrl}
-                  onChange={(e) => setSpotifyImportUrl(e.target.value)}
-                  placeholder="https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
-                  className="w-full px-3.5 py-2.5 bg-[#181818] border border-[#3e3e3e] focus:border-[#1ed760] rounded-xl text-xs text-white placeholder-[#757575] focus:outline-none transition-all"
-                />
-
-                {spotifyImportError && (
-                  <p className="text-xs text-red-400 bg-red-950/50 p-2 rounded-lg border border-red-900/50">
-                    {spotifyImportError}
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={importingSpotify || !spotifyImportUrl.trim()}
-                  className="w-full py-2.5 px-4 bg-white hover:bg-white/90 disabled:opacity-50 text-black font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all"
-                >
-                  {importingSpotify ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-black" />
-                      <span>Importing Spotify Tracks & Artwork...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 text-black stroke-[3]" />
-                      <span>Import Playlist to Library</span>
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-
             <div className="text-[11px] text-[#b3b3b3] text-center">
-              All songs play 100% free with continuous background playback on lock-screen and minimized laptops.
+              All imported songs stream 100% free with continuous background playback on lock-screen and minimized laptops.
             </div>
           </div>
         </div>
