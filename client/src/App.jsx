@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Player from "./components/Player.jsx";
 import { 
   Home, 
@@ -24,7 +24,8 @@ import {
   Headphones,
   Music,
   FolderPlus,
-  Play
+  Play,
+  Loader2
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -43,20 +44,28 @@ const SPOTIFY_PLAYLISTS = [
 ];
 
 const SPOTIFY_BROWSE_TILES = [
-  { title: "Today's Top Hits", query: "Top Hits", color: "from-emerald-600 to-teal-800", emoji: "🔥" },
-  { title: "Kannada Mass", query: "Kannada", color: "from-amber-600 to-red-700", emoji: "🟡" },
+  { title: "Today's Top Hits", query: "Top Hits 2024", color: "from-emerald-600 to-teal-800", emoji: "🔥" },
+  { title: "Global Top 50", query: "Global Top 50", color: "from-blue-600 to-indigo-800", emoji: "🇺🇸" },
+  { title: "Viral 50 Worldwide", query: "Viral Hits Worldwide", color: "from-violet-600 to-purple-800", emoji: "🚀" },
+  { title: "Kannada Mass & DJ", query: "Kannada", color: "from-amber-600 to-red-700", emoji: "🟡" },
   { title: "Bollywood Butter", query: "Hindi", color: "from-orange-600 to-rose-700", emoji: "🇮🇳" },
-  { title: "Konkani Baila", query: "Konkani", color: "from-teal-600 to-cyan-800", emoji: "🌴" },
-  { title: "Tollywood Mass", query: "Telugu", color: "from-purple-600 to-pink-700", emoji: "🕺" },
-  { title: "Mollywood Beats", query: "Malayalam", color: "from-emerald-700 to-green-900", emoji: "🥥" },
-  { title: "Kollywood Kuthu", query: "Tamil", color: "from-red-600 to-orange-700", emoji: "✨" },
-  { title: "Punjabi 101", query: "Punjabi", color: "from-pink-600 to-rose-700", emoji: "👳" },
-  { title: "Global Top 50", query: "English", color: "from-blue-600 to-indigo-800", emoji: "🇺🇸" },
-  { title: "Lo-Fi Beats & Chill", query: "Lo-Fi Chill", color: "from-indigo-600 to-purple-800", emoji: "🌙" },
-  { title: "Party DJ Bangers", query: "Party DJ", color: "from-fuchsia-600 to-purple-800", emoji: "⚡" },
-  { title: "Romantic Melodies", query: "Romantic Love", color: "from-rose-600 to-red-800", emoji: "❤️" },
-  { title: "All-Time Classics", query: "Classics", color: "from-amber-700 to-yellow-800", emoji: "⭐" },
-  { title: "Workout Hype", query: "Workout Motivation", color: "from-orange-700 to-red-900", emoji: "💪" }
+  { title: "Konkani Coastal Baila", query: "Konkani", color: "from-teal-600 to-cyan-800", emoji: "🌴" },
+  { title: "Tollywood Blockbusters", query: "Telugu", color: "from-purple-600 to-pink-700", emoji: "🕺" },
+  { title: "Mollywood Chill & Beats", query: "Malayalam", color: "from-emerald-700 to-green-900", emoji: "🥥" },
+  { title: "Kollywood Kuthu & Melody", query: "Tamil", color: "from-red-600 to-orange-700", emoji: "✨" },
+  { title: "Punjabi Trap & Pop", query: "Punjabi", color: "from-pink-600 to-rose-700", emoji: "👳" },
+  { title: "Lo-Fi Beats & Relax", query: "Lo-Fi Chill Beats", color: "from-indigo-600 to-purple-800", emoji: "🌙" },
+  { title: "Phonk & Night Drive", query: "Phonk Drift", color: "from-zinc-700 to-neutral-900", emoji: "🏎️" },
+  { title: "K-Pop ON! Worldwide", query: "K-Pop BTS Blackpink", color: "from-fuchsia-600 to-pink-700", emoji: "🇰🇷" },
+  { title: "Latin Fiesta & Reggaeton", query: "Latin Reggaeton", color: "from-amber-600 to-orange-800", emoji: "💃" },
+  { title: "Hip Hop & Rap Classics", query: "Hip Hop Rap", color: "from-slate-700 to-zinc-900", emoji: "🎧" },
+  { title: "EDM Festival Club Mix", query: "EDM Club Party Dance", color: "from-cyan-600 to-blue-800", emoji: "⚡" },
+  { title: "Rock & Heavy Power", query: "Rock Legends", color: "from-rose-800 to-red-950", emoji: "🎸" },
+  { title: "Romantic Melodies", query: "Romantic Love Songs", color: "from-rose-600 to-red-800", emoji: "❤️" },
+  { title: "All-Time Classics 80s 90s", query: "80s 90s Golden Hits", color: "from-amber-700 to-yellow-800", emoji: "⭐" },
+  { title: "Workout & Gym Motivation", query: "Workout Motivation Beast", color: "from-orange-700 to-red-900", emoji: "💪" },
+  { title: "Anime & Gaming Soundtracks", query: "Anime Gaming OST", color: "from-purple-700 to-indigo-900", emoji: "🎮" },
+  { title: "Acoustic & Unplugged", query: "Acoustic Unplugged Coffee", color: "from-stone-600 to-amber-900", emoji: "🌾" }
 ];
 
 const LANGUAGES = [
@@ -97,6 +106,66 @@ export default function App() {
   const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
+
+  // Universal Live Search State
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchContainerRef = useRef(null);
+
+  // Debounced Universal Search across YouTube, Spotify & 100M+ global catalog
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q || q.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      setShowSearchDropdown(false);
+      return;
+    }
+
+    setSearching(true);
+    setShowSearchDropdown(true);
+
+    const timer = setTimeout(() => {
+      fetch(`/api/search?q=${encodeURIComponent(q)}`)
+        .then(res => res.json())
+        .then(data => {
+          setSearchResults(data.results || []);
+        })
+        .catch(() => {})
+        .finally(() => setSearching(false));
+    }, 280);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Click outside listener to dismiss live search dropdown
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setShowSearchDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelectSearchResultSong = (track) => {
+    const others = searchResults.filter(t => (t.title || '').toLowerCase() !== (track.title || '').toLowerCase());
+    setPlaylist({
+      mood: track.title,
+      vibeTitle: track.title,
+      vibeDescription: `Worldwide track by ${track.artist} • 100% Free & Ad-Free`,
+      emoji: "🎵✨",
+      genre: "Worldwide Master Stream",
+      energy: "98% High Energy",
+      colorTheme: ["#1ed760", "#121212"],
+      spotifyUrl: track.spotifyUrl || `https://open.spotify.com/search/${encodeURIComponent(track.title + ' ' + track.artist)}`,
+      tracks: [track, ...others]
+    });
+    setShowSearchDropdown(false);
+    setActiveTab("home");
+  };
 
   useEffect(() => {
     try {
@@ -559,16 +628,17 @@ export default function App() {
               </button>
             </div>
 
-            {/* Center: Spotify Pill Search Bar (Searches all 100M+ songs) */}
-            <form onSubmit={handleSearchSubmit} className="flex-1 max-w-md relative flex items-center">
-              <div className="relative w-full flex items-center">
+            {/* Center: Spotify Pill Search Bar (Searches literally all songs on YouTube, Spotify & Worldwide) */}
+            <div ref={searchContainerRef} className="flex-1 max-w-md relative">
+              <form onSubmit={handleSearchSubmit} className="relative w-full flex items-center">
                 <Search className="w-4 h-4 text-[#b3b3b3] absolute left-3.5 pointer-events-none" />
                 <input
                   id="spotify-search-input"
                   type="text"
                   value={searchQuery}
+                  onFocus={() => { if (searchResults.length > 0) setShowSearchDropdown(true); }}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="What do you want to play? (Any song, artist, album, mood)..."
+                  placeholder="Play any song in YouTube or Spotify worldwide..."
                   className="w-full pl-10 pr-20 py-2 bg-[#242424] hover:bg-[#2a2a2a] focus:bg-[#2a2a2a] border border-transparent focus:border-white/20 rounded-full text-xs sm:text-sm text-white placeholder-[#757575] focus:outline-none transition-all"
                 />
                 
@@ -577,7 +647,7 @@ export default function App() {
                   {searchQuery && (
                     <button
                       type="button"
-                      onClick={() => setSearchQuery("")}
+                      onClick={() => { setSearchQuery(""); setSearchResults([]); setShowSearchDropdown(false); }}
                       className="p-1 text-[#b3b3b3] hover:text-white"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -592,8 +662,65 @@ export default function App() {
                     <Mic className="w-3.5 h-3.5" />
                   </button>
                 </div>
-              </div>
-            </form>
+              </form>
+
+              {/* Floating Instant Universal Search Results Dropdown */}
+              {showSearchDropdown && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-[#282828] border border-white/10 rounded-2xl shadow-2xl p-2 z-50 max-h-96 overflow-y-auto scrollbar-thin animate-in fade-in duration-150">
+                  {searching ? (
+                    <div className="py-4 text-center text-xs text-[#b3b3b3] flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#1ed760]" />
+                      <span>Searching all songs on YouTube & Spotify worldwide...</span>
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="py-3 text-center text-xs text-[#b3b3b3]">
+                      Press Enter to search live on YouTube and Spotify
+                    </div>
+                  ) : (
+                    <>
+                      <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#b3b3b3] flex items-center justify-between">
+                        <span>Worldwide Instant Results</span>
+                        <span className="text-[#1ed760] font-mono">{searchResults.length} songs</span>
+                      </div>
+                      <div className="space-y-1">
+                        {searchResults.slice(0, 7).map((track, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => handleSelectSearchResultSong(track)}
+                            className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-[#383838] cursor-pointer transition-colors group"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <img 
+                                src={track.artworkUrl || (track.youtubeVideoId ? `https://i.ytimg.com/vi/${track.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=100`)} 
+                                alt={track.title}
+                                className="w-10 h-10 rounded object-cover flex-shrink-0 bg-[#181818]"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-bold text-white truncate group-hover:text-[#1ed760]">{track.title}</p>
+                                <p className="text-[11px] text-[#b3b3b3] truncate">{track.artist}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-[10px] font-mono text-[#b3b3b3]">{track.duration}</span>
+                              <div className="w-8 h-8 rounded-full bg-[#1ed760] text-black flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div 
+                        onClick={handleSearchSubmit}
+                        className="mt-2 pt-2 border-t border-white/10 px-3 py-1.5 text-center text-xs text-[#1ed760] hover:underline cursor-pointer font-bold flex items-center justify-center gap-1.5"
+                      >
+                        <span>Open full worldwide playlist for "{searchQuery}"</span>
+                        <span>→</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Right: Language Quick Filter Chips + Phone Connect */}
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -660,24 +787,148 @@ export default function App() {
 
             {/* TAB 1: SEARCH / BROWSE CATEGORIES (When activeTab === "search") */}
             {activeTab === "search" && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <h2 className="text-xl sm:text-2xl font-black text-white">Browse All Spotify Categories</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-                  {SPOTIFY_BROWSE_TILES.map((tile, i) => (
-                    <div
-                      key={i}
-                      onClick={() => handleMoodSubmit(tile.query)}
-                      className={`relative h-28 sm:h-36 rounded-2xl p-4 bg-gradient-to-br ${tile.color} cursor-pointer hover:scale-[1.02] active:scale-95 transition-all shadow-lg overflow-hidden flex flex-col justify-between group`}
-                    >
-                      <h3 className="text-sm sm:text-base font-extrabold text-white leading-tight">
-                        {tile.title}
-                      </h3>
-                      <span className="text-3xl sm:text-4xl self-end transform group-hover:rotate-12 group-hover:scale-110 transition-transform">
-                        {tile.emoji}
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {searchQuery.trim() ? (
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl sm:text-2xl font-black text-white">
+                        Search Results for "{searchQuery}"
+                      </h2>
+                      <span className="text-xs text-[#1ed760] font-mono font-bold">
+                        {searchResults.length} songs found worldwide
                       </span>
                     </div>
-                  ))}
-                </div>
+
+                    {searching ? (
+                      <div className="py-16 text-center text-xs text-[#b3b3b3] flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-6 h-6 animate-spin text-[#1ed760]" />
+                        <span>Searching YouTube & Spotify across all worldwide songs...</span>
+                      </div>
+                    ) : searchResults.length > 0 ? (
+                      <div className="space-y-6">
+                        {/* Top Result + Songs Preview */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                          {/* Top Result Card */}
+                          <div className="lg:col-span-5 bg-[#181818] hover:bg-[#282828] p-5 rounded-2xl border border-white/5 transition-all group relative flex flex-col justify-between">
+                            <div>
+                              <p className="text-xs font-bold text-[#b3b3b3] uppercase tracking-wider mb-3">Top Result</p>
+                              <img 
+                                src={searchResults[0].artworkUrl || (searchResults[0].youtubeVideoId ? `https://i.ytimg.com/vi/${searchResults[0].youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300`)} 
+                                alt={searchResults[0].title}
+                                className="w-28 h-28 rounded-xl object-cover shadow-xl bg-[#282828] mb-4"
+                              />
+                              <h3 className="text-2xl font-black text-white truncate group-hover:text-[#1ed760] transition-colors">
+                                {searchResults[0].title}
+                              </h3>
+                              <p className="text-sm text-[#b3b3b3] truncate mt-1">
+                                {searchResults[0].artist} • <span className="text-white/60 font-semibold uppercase text-xs">Song</span>
+                              </p>
+                            </div>
+                            <div className="pt-4 flex items-center justify-between">
+                              <span className="text-xs font-mono text-[#b3b3b3]">{searchResults[0].duration}</span>
+                              <button
+                                onClick={() => handleSelectSearchResultSong(searchResults[0])}
+                                className="w-12 h-12 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] text-black flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all"
+                                title="Play Track"
+                              >
+                                <Play className="w-6 h-6 fill-current ml-0.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Top 4 Songs List */}
+                          <div className="lg:col-span-7 space-y-1.5">
+                            <p className="text-xs font-bold text-[#b3b3b3] uppercase tracking-wider mb-2">Songs</p>
+                            {searchResults.slice(0, 4).map((track, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => handleSelectSearchResultSong(track)}
+                                className="flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-[#282828] cursor-pointer transition-colors group"
+                              >
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <img 
+                                    src={track.artworkUrl || (track.youtubeVideoId ? `https://i.ytimg.com/vi/${track.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=100`)} 
+                                    alt={track.title}
+                                    className="w-11 h-11 rounded-lg object-cover flex-shrink-0 bg-[#282828]"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold text-white truncate group-hover:text-[#1ed760]">{track.title}</p>
+                                    <p className="text-xs text-[#b3b3b3] truncate">{track.artist}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  <span className="text-xs font-mono text-[#b3b3b3]">{track.duration}</span>
+                                  <div className="w-8 h-8 rounded-full bg-[#1ed760] text-black flex items-center justify-center shadow opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Play className="w-4 h-4 fill-current ml-0.5" />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* All Matching Tracks Grid */}
+                        <div className="space-y-3 pt-4 border-t border-white/5">
+                          <h3 className="text-base font-bold text-white">All Matching Tracks ({searchResults.length})</h3>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                            {searchResults.map((track, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => handleSelectSearchResultSong(track)}
+                                className="p-3 bg-[#181818] hover:bg-[#282828] rounded-xl cursor-pointer transition-all flex flex-col justify-between group border border-transparent hover:border-white/10"
+                              >
+                                <div className="relative w-full aspect-square rounded-lg overflow-hidden mb-2.5 bg-[#282828]">
+                                  <img 
+                                    src={track.artworkUrl || (track.youtubeVideoId ? `https://i.ytimg.com/vi/${track.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200`)} 
+                                    alt={track.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                  <div className="absolute right-2 bottom-2 w-9 h-9 rounded-full bg-[#1ed760] text-black flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0 duration-200">
+                                    <Play className="w-4 h-4 fill-current ml-0.5" />
+                                  </div>
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-white truncate group-hover:text-[#1ed760]">{track.title}</p>
+                                  <p className="text-[11px] text-[#b3b3b3] truncate mt-0.5">{track.artist}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-16 text-center text-sm text-[#b3b3b3] space-y-3">
+                        <p>No instant results found. Press Enter to search YouTube and Spotify worldwide!</p>
+                        <button
+                          onClick={handleSearchSubmit}
+                          className="px-5 py-2 bg-[#1ed760] text-black rounded-full font-bold text-xs"
+                        >
+                          Search Universal Catalog for "{searchQuery}"
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <h2 className="text-xl sm:text-2xl font-black text-white">Browse All Music in the World</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                      {SPOTIFY_BROWSE_TILES.map((tile, i) => (
+                        <div
+                          key={i}
+                          onClick={() => handleMoodSubmit(tile.query)}
+                          className={`relative h-28 sm:h-36 rounded-2xl p-4 bg-gradient-to-br ${tile.color} cursor-pointer hover:scale-[1.02] active:scale-95 transition-all shadow-lg overflow-hidden flex flex-col justify-between group`}
+                        >
+                          <h3 className="text-sm sm:text-base font-extrabold text-white leading-tight">
+                            {tile.title}
+                          </h3>
+                          <span className="text-3xl sm:text-4xl self-end transform group-hover:rotate-12 group-hover:scale-110 transition-transform">
+                            {tile.emoji}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

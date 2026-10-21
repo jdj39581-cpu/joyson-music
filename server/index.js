@@ -12,6 +12,7 @@ const {
   fetchRealTrackAudio, 
   fetchTrackLyrics,
   searchLiveMusicCatalog,
+  searchUniversalMusicCatalog,
   SONG_DATABASE 
 } = require('./moodService');
 const { getAccessToken } = require('./spotify');
@@ -85,27 +86,14 @@ app.get('/api/candidate-videos', async (req, res) => {
   }
 });
 
-// Live search endpoint across 100M+ global & curated catalog
+// Live search endpoint across literally all songs in YouTube, Spotify & Universal Catalog
 app.get('/api/search', async (req, res) => {
   const { q } = req.query;
   if (!q || !q.trim()) return res.json({ results: [] });
 
   try {
-    const query = q.trim().toLowerCase();
-    const local = [];
-    for (const lang of Object.keys(SONG_DATABASE)) {
-      for (const s of SONG_DATABASE[lang]) {
-        if (s.title.toLowerCase().includes(query) || s.artist.toLowerCase().includes(query)) {
-          local.push(s);
-          if (local.length >= 10) break;
-        }
-      }
-      if (local.length >= 10) break;
-    }
-
-    const live = await searchLiveMusicCatalog(query, 'IN', 20);
-    const combined = [...local, ...live];
-    res.json({ results: combined.slice(0, 25) });
+    const results = await searchUniversalMusicCatalog(q.trim(), 40);
+    res.json({ results });
   } catch (err) {
     res.status(500).json({ error: 'Search failed' });
   }

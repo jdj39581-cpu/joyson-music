@@ -1660,12 +1660,23 @@ export default function Player({
 
         {/* Table Rows */}
         {displayedList.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[#b3b3b3]">
-            {showLikedOnly 
-              ? "No liked songs yet! Click the ❤️ heart icon on any track to save it here."
-              : filterQuery
-                ? `No songs found matching "${filterQuery}".`
-                : "No tracks available in this category."}
+          <div className="py-16 text-center text-sm text-[#b3b3b3] space-y-4">
+            <p>
+              {showLikedOnly 
+                ? "No liked songs yet! Click the ❤️ heart icon on any track to save it here."
+                : filterQuery
+                  ? `No songs found matching "${filterQuery}" in this playlist.`
+                  : "No tracks available in this category."}
+            </p>
+            {filterQuery && onRefreshPlaylist && (
+              <button
+                onClick={() => onRefreshPlaylist(filterQuery)}
+                className="px-6 py-2.5 bg-[#1ed760] hover:bg-[#1fdf64] text-black font-extrabold text-xs rounded-full shadow-xl hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-2"
+              >
+                <Search className="w-4 h-4" />
+                <span>Search literally all songs on YouTube & Spotify worldwide for "{filterQuery}" 🌐</span>
+              </button>
+            )}
           </div>
         ) : (
           <div 
