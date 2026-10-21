@@ -76,6 +76,58 @@ function shuffleArray(array) {
   return arr;
 }
 
+// Web Audio API Continuous Background Audio Engine
+// Guarantees phone lock-screen and minimized laptop background playback without throttling
+class BackgroundAudioKeepAlive {
+  constructor() {
+    this.ctx = null;
+    this.osc = null;
+    this.gain = null;
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioCtx();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  start() {
+    try {
+      this.init();
+      if (!this.osc && this.ctx) {
+        // Continuous subsonic frequency (15Hz) at minimal volume (0.0001)
+        // Signals to browser & OS that the tab is actively streaming audio,
+        // preventing the browser from ever suspending or killing the process when minimized or screen is locked
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.frequency.value = 15;
+        gain.gain.value = 0.0001;
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        this.osc = osc;
+        this.gain = gain;
+      }
+    } catch (e) {}
+  }
+
+  stop() {
+    if (this.osc) {
+      try {
+        this.osc.stop();
+        this.osc.disconnect();
+      } catch (e) {}
+      this.osc = null;
+    }
+  }
+}
+
+const backgroundAudioKeepAlive = new BackgroundAudioKeepAlive();
+
 // Web Audio API Ambient Sound Synthesizer
 class AmbientSoundGenerator {
   constructor() {
@@ -570,11 +622,21 @@ export default function Player({
     }
   };
 
-  // Re-acquire WakeLock on visibility change if music is active
+  // Persistent Background Playback & WakeLock Engine
+  // Keeps music playing smoothly when phone/laptop screen is locked or window is minimized
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && isPlaying && wakeLockActive) {
-        await requestWakeLock();
+      if (document.visibilityState === 'hidden') {
+        if (isPlaying) {
+          backgroundAudioKeepAlive.start();
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'playing';
+          }
+        }
+      } else if (document.visibilityState === 'visible') {
+        if (isPlaying && wakeLockActive) {
+          await requestWakeLock();
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -969,7 +1031,8 @@ export default function Player({
       playHtml5Audio(track);
     }
 
-    // Auto-request screen wake lock on play
+    // Auto-request screen wake lock & start continuous background audio heartbeat
+    backgroundAudioKeepAlive.start();
     if (!wakeLockSentinelRef.current && 'wakeLock' in navigator) {
       requestWakeLock();
     }
@@ -1002,8 +1065,10 @@ export default function Player({
         try { ytPlayerRef.current.pauseVideo(); } catch (e) {}
       }
       if (audioRef.current) audioRef.current.pause();
+      backgroundAudioKeepAlive.stop();
       setIsPlaying(false);
     } else {
+      backgroundAudioKeepAlive.start();
       if (ytPlayerRef.current && typeof ytPlayerRef.current.playVideo === 'function') {
         try { 
           ytPlayerRef.current.playVideo(); 

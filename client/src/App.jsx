@@ -79,6 +79,14 @@ const LANGUAGES = [
   { label: "English", emoji: "🇺🇸" }
 ];
 
+function SpotifyIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.503 17.308c-.215.353-.674.464-1.027.249-2.812-1.718-6.353-2.107-10.523-1.155-.403.092-.803-.16-.895-.563-.092-.403.16-.803.563-.895 4.571-1.044 8.487-.601 11.633 1.337.353.215.464.674.249 1.027zm1.468-3.264c-.27.44-.847.579-1.287.31-3.218-1.977-8.125-2.55-11.933-1.393-.496.15-1.024-.134-1.174-.63-.15-.496.134-1.024.63-1.174 4.354-1.321 9.775-.681 13.454 1.58.44.27.579.847.31 1.287zm.127-3.397C15.244 8.354 8.903 8.14 5.234 9.254c-.59.18-1.218-.158-1.398-.748-.18-.59.158-1.218.748-1.398 4.225-1.283 11.233-1.036 15.688 1.608.53.315.705 1.004.39 1.534-.315.53-1.004.705-1.534.39z"/>
+    </svg>
+  );
+}
+
 export default function App() {
   const [playlist, setPlaylist] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -106,6 +114,86 @@ export default function App() {
   const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
   const [newPlaylistTitle, setNewPlaylistTitle] = useState("");
   const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
+
+  // Spotify Account Connection & Import State
+  const [spotifyUser, setSpotifyUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("aurabeat_spotify_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [showSpotifyModal, setShowSpotifyModal] = useState(false);
+  const [spotifyImportUrl, setSpotifyImportUrl] = useState("");
+  const [importingSpotify, setImportingSpotify] = useState(false);
+  const [spotifyImportError, setSpotifyImportError] = useState(null);
+
+  // Parse Spotify OAuth callback on load
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && hash.includes("spotify_connected=")) {
+      try {
+        const payloadStr = decodeURIComponent(hash.split("spotify_connected=")[1]);
+        const data = JSON.parse(payloadStr);
+        if (data.profile) {
+          setSpotifyUser(data.profile);
+          localStorage.setItem("aurabeat_spotify_user", JSON.stringify(data.profile));
+        }
+        if (data.playlists && data.playlists.length > 0) {
+          setUserPlaylists(prev => {
+            const existingIds = new Set(prev.map(p => p.id));
+            const newOnes = data.playlists.filter(p => !existingIds.has(p.id));
+            const combined = [...newOnes, ...prev];
+            try { localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(combined)); } catch (e) {}
+            return combined;
+          });
+        }
+        window.history.replaceState(null, '', window.location.pathname);
+        setActiveTab("library");
+      } catch (err) {}
+    }
+  }, []);
+
+  const handleImportSpotifyPlaylist = async (e) => {
+    e?.preventDefault();
+    if (!spotifyImportUrl.trim() || importingSpotify) return;
+
+    setImportingSpotify(true);
+    setSpotifyImportError(null);
+
+    try {
+      const res = await fetch("/api/spotify/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: spotifyImportUrl.trim() })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to import Spotify playlist.");
+      }
+
+      const data = await res.json();
+      if (data.playlist) {
+        const updated = [data.playlist, ...userPlaylists.filter(p => p.id !== data.playlist.id)];
+        saveUserPlaylists(updated);
+        setSpotifyImportUrl("");
+        setShowSpotifyModal(false);
+        handleSelectCustomPlaylist(data.playlist);
+      }
+    } catch (err) {
+      setSpotifyImportError(err.message || "Could not import playlist. Check the URL and try again.");
+    } finally {
+      setImportingSpotify(false);
+    }
+  };
+
+  const handleDisconnectSpotify = () => {
+    setSpotifyUser(null);
+    localStorage.removeItem("aurabeat_spotify_user");
+    setShowSpotifyModal(false);
+  };
 
   // Universal Live Search State
   const [searchResults, setSearchResults] = useState([]);
@@ -396,6 +484,137 @@ export default function App() {
         </div>
       )}
 
+      {/* Connect Spotify Account & Import Playlist Modal */}
+      {showSpotifyModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[#181818] border border-[#282828] rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 relative">
+            <div className="flex items-center justify-between pb-3 border-b border-[#282828]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#1ed760] text-black flex items-center justify-center shadow-lg shadow-[#1ed760]/20">
+                  <SpotifyIcon className="w-4 h-4 fill-black" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Spotify Account & Playlists</h3>
+                  <p className="text-[11px] text-[#b3b3b3]">Connect your account or import any playlist</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowSpotifyModal(false)} 
+                className="p-1.5 text-[#b3b3b3] hover:text-white bg-[#242424] hover:bg-[#2e2e2e] rounded-xl transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Spotify Account Status Section */}
+            <div className="p-4 bg-[#242424] rounded-2xl border border-white/5 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Account Sync</span>
+                {spotifyUser ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1ed760]/20 text-[#1ed760] font-bold border border-[#1ed760]/30 flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Connected
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#b3b3b3] font-bold">
+                    Not Linked
+                  </span>
+                )}
+              </div>
+
+              {spotifyUser ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    {spotifyUser.images?.[0]?.url ? (
+                      <img src={spotifyUser.images[0].url} alt={spotifyUser.display_name} className="w-12 h-12 rounded-full object-cover border border-[#1ed760]" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-[#1ed760] text-black font-extrabold text-base flex items-center justify-center">
+                        {spotifyUser.display_name?.[0]?.toUpperCase() || "S"}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-white truncate">{spotifyUser.display_name || "Spotify User"}</p>
+                      <p className="text-xs text-[#b3b3b3] truncate">
+                        {spotifyUser.email || (spotifyUser.followers?.total ? `${spotifyUser.followers.total} followers` : "Spotify Account")} • {spotifyUser.product ? `${spotifyUser.product.toUpperCase()}` : "User"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <p className="text-[11px] text-[#1ed760]">✓ Your Spotify playlists are auto-synced into AuraBeat</p>
+                    <button
+                      onClick={handleDisconnectSpotify}
+                      className="px-3 py-1 bg-red-950/60 hover:bg-red-900 border border-red-800 text-red-300 rounded-lg text-xs font-bold transition-all"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-[#b3b3b3] leading-relaxed">
+                    Log in with your official Spotify account to instantly load all your personal Spotify playlists into AuraBeat for unlimited free playback.
+                  </p>
+                  <button
+                    onClick={() => { window.location.href = '/api/spotify/login'; }}
+                    className="w-full py-2.5 px-4 bg-[#1ed760] hover:bg-[#1fdf64] text-black font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
+                  >
+                    <SpotifyIcon className="w-4 h-4 fill-black" />
+                    <span>Connect Official Spotify Account</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Direct Spotify Playlist URL Importer Section */}
+            <div className="p-4 bg-[#242424] rounded-2xl border border-white/5 space-y-3">
+              <div>
+                <span className="text-xs font-bold text-white uppercase tracking-wider">Import Any Spotify Playlist</span>
+                <p className="text-[11px] text-[#b3b3b3] mt-0.5">
+                  Paste any public Spotify playlist URL or Spotify URI link below
+                </p>
+              </div>
+
+              <form onSubmit={handleImportSpotifyPlaylist} className="space-y-3">
+                <input
+                  type="text"
+                  value={spotifyImportUrl}
+                  onChange={(e) => setSpotifyImportUrl(e.target.value)}
+                  placeholder="https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M"
+                  className="w-full px-3.5 py-2.5 bg-[#181818] border border-[#3e3e3e] focus:border-[#1ed760] rounded-xl text-xs text-white placeholder-[#757575] focus:outline-none transition-all"
+                />
+
+                {spotifyImportError && (
+                  <p className="text-xs text-red-400 bg-red-950/50 p-2 rounded-lg border border-red-900/50">
+                    {spotifyImportError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={importingSpotify || !spotifyImportUrl.trim()}
+                  className="w-full py-2.5 px-4 bg-white hover:bg-white/90 disabled:opacity-50 text-black font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-md hover:scale-[1.01] active:scale-95 transition-all"
+                >
+                  {importingSpotify ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-black" />
+                      <span>Importing Spotify Tracks & Artwork...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 text-black stroke-[3]" />
+                      <span>Import Playlist to Library</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            <div className="text-[11px] text-[#b3b3b3] text-center">
+              All songs play 100% free with continuous background playback on lock-screen and minimized laptops.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile QR Modal */}
       {showMobileModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-200">
@@ -516,14 +735,24 @@ export default function App() {
                 <Library className="w-4 h-4 text-[#1ed760]" />
                 <span>Playlists</span>
               </div>
-              <button
-                onClick={() => setShowCreatePlaylistModal(true)}
-                className="p-1.5 text-[#b3b3b3] hover:text-white hover:bg-[#282828] rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold"
-                title="Create New Playlist"
-              >
-                <Plus className="w-4 h-4 text-[#1ed760]" />
-                <span>New</span>
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowSpotifyModal(true)}
+                  className="p-1.5 text-[#1ed760] hover:text-white hover:bg-[#282828] rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold"
+                  title="Connect Spotify Account or Import Playlist"
+                >
+                  <SpotifyIcon className="w-3.5 h-3.5 fill-[#1ed760]" />
+                  <span>Spotify</span>
+                </button>
+                <button
+                  onClick={() => setShowCreatePlaylistModal(true)}
+                  className="p-1.5 text-[#b3b3b3] hover:text-white hover:bg-[#282828] rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold"
+                  title="Create New Playlist"
+                >
+                  <Plus className="w-4 h-4 text-[#1ed760]" />
+                  <span>New</span>
+                </button>
+              </div>
             </div>
 
             {/* Scrollable Playlists List */}
@@ -751,13 +980,35 @@ export default function App() {
                 <span className="hidden sm:inline">Phone App</span>
               </button>
 
-              {/* User Avatar */}
-              <div 
-                className="w-8 h-8 rounded-full bg-[#1ed760]/20 border border-[#1ed760]/40 text-[#1ed760] font-bold text-xs flex items-center justify-center shadow-md cursor-pointer hover:scale-105 transition-transform"
-                title="AuraBeat Spotify VIP User"
-              >
-                VIP
-              </div>
+              {/* Spotify Account Pill / Connect Button */}
+              {spotifyUser ? (
+                <button
+                  onClick={() => setShowSpotifyModal(true)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-[#242424] hover:bg-[#2e2e2e] border border-[#1ed760]/50 rounded-full transition-all group shadow-md"
+                  title={`Spotify Connected: ${spotifyUser.display_name || 'User'}`}
+                >
+                  {spotifyUser.images?.[0]?.url ? (
+                    <img src={spotifyUser.images[0].url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-[#1ed760] text-black font-bold text-[10px] flex items-center justify-center">
+                      {spotifyUser.display_name?.[0]?.toUpperCase() || "S"}
+                    </div>
+                  )}
+                  <span className="text-xs font-bold text-white truncate max-w-[80px] hidden sm:inline">
+                    {spotifyUser.display_name || "Spotify"}
+                  </span>
+                  <SpotifyIcon className="w-3.5 h-3.5 text-[#1ed760]" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowSpotifyModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1ed760] hover:bg-[#1fdf64] text-black font-bold text-xs transition-all shadow-md hover:scale-105"
+                  title="Connect Spotify Account or Import Playlists"
+                >
+                  <SpotifyIcon className="w-3.5 h-3.5 fill-black" />
+                  <span className="hidden sm:inline">Connect Spotify</span>
+                </button>
+              )}
             </div>
           </header>
 
@@ -937,13 +1188,22 @@ export default function App() {
               <div className="space-y-5 animate-in fade-in duration-200">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl sm:text-2xl font-black text-white">Your Music Library</h2>
-                  <button
-                    onClick={() => setShowCreatePlaylistModal(true)}
-                    className="px-4 py-2 bg-[#1ed760] text-black rounded-full font-bold text-xs flex items-center gap-1.5 shadow-md hover:scale-105 transition-all"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Create Playlist</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowSpotifyModal(true)}
+                      className="px-4 py-2 bg-[#242424] hover:bg-[#2e2e2e] border border-[#1ed760]/50 text-[#1ed760] rounded-full font-bold text-xs flex items-center gap-1.5 shadow-md hover:scale-105 transition-all"
+                    >
+                      <SpotifyIcon className="w-3.5 h-3.5 fill-[#1ed760]" />
+                      <span>{spotifyUser ? "Spotify Connected" : "Import / Connect Spotify"}</span>
+                    </button>
+                    <button
+                      onClick={() => setShowCreatePlaylistModal(true)}
+                      className="px-4 py-2 bg-[#1ed760] text-black rounded-full font-bold text-xs flex items-center gap-1.5 shadow-md hover:scale-105 transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Create Playlist</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">

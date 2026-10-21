@@ -15,7 +15,14 @@ const {
   searchUniversalMusicCatalog,
   SONG_DATABASE 
 } = require('./moodService');
-const { getAccessToken } = require('./spotify');
+const { 
+  getAccessToken,
+  importSpotifyPlaylist,
+  getSpotifyAuthUrl,
+  handleSpotifyCallback,
+  getUserSpotifyProfile,
+  getUserSpotifyPlaylists
+} = require('./spotify');
 
 const app = express();
 app.use(cors());
@@ -83,6 +90,60 @@ app.get('/api/candidate-videos', async (req, res) => {
     res.json({ videoIds, videoId: videoIds[0] || null });
   } catch (err) {
     res.status(500).json({ error: 'Could not fetch candidate video IDs' });
+  }
+});
+
+// Spotify Account OAuth Login
+app.get('/api/spotify/login', (req, res) => {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.get('host');
+  const redirectUri = `${protocol}://${host}/api/spotify/callback`;
+  const url = getSpotifyAuthUrl(redirectUri);
+  res.redirect(url);
+});
+
+// Spotify OAuth Callback
+app.get('/api/spotify/callback', async (req, res) => {
+  const { code, error } = req.query;
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+  const host = req.get('host');
+  const redirectUri = `${protocol}://${host}/api/spotify/callback`;
+
+  if (error || !code) {
+    return res.redirect('/?spotify_error=' + encodeURIComponent(error || 'Authorization denied'));
+  }
+
+  try {
+    const tokenData = await handleSpotifyCallback(code, redirectUri);
+    const profile = await getUserSpotifyProfile(tokenData.access_token);
+    const playlists = await getUserSpotifyPlaylists(tokenData.access_token);
+
+    const userPayload = encodeURIComponent(JSON.stringify({
+      accessToken: tokenData.access_token,
+      profile,
+      playlists
+    }));
+
+    res.redirect(`/#spotify_connected=${userPayload}`);
+  } catch (err) {
+    console.error('Spotify callback error:', err.response?.data || err.message);
+    res.redirect('/?spotify_error=Failed to link Spotify account');
+  }
+});
+
+// Import ANY Spotify Playlist by URL or ID (Public / User shared playlist)
+app.post('/api/spotify/import', async (req, res) => {
+  const { url } = req.body;
+  if (!url || !url.trim()) {
+    return res.status(400).json({ error: 'Spotify playlist URL is required' });
+  }
+
+  try {
+    const playlist = await importSpotifyPlaylist(url.trim());
+    res.json({ playlist });
+  } catch (err) {
+    console.error('Spotify import error:', err.message);
+    res.status(500).json({ error: 'Could not import Spotify playlist. Check the URL and try again.' });
   }
 });
 

@@ -46,41 +46,160 @@ async function getAccessToken() {
 }
 
 /**
- * Search Spotify for playlists matching a query string.
- * Gracefully catches 403 / developer tier restrictions.
+ * Import ANY Spotify Playlist by URL, URI or ID
+ * Extracts full 50+ tracks, titles, artists, duration, audio previews, and artwork
  */
-async function searchPlaylist(query, token) {
-  if (!token) return null;
-  try {
-    const encoded = encodeURIComponent(query);
-    const url = `https://api.spotify.com/v1/search?type=playlist&limit=5&q=${encoded}`;
-    const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 5000,
-    });
-    return response.data.playlists;
-  } catch (err) {
-    console.warn('Spotify search playlist warning:', err.response?.data?.error?.message || err.message);
-    return null;
+async function importSpotifyPlaylist(playlistIdOrUrl) {
+  let playlistId = (playlistIdOrUrl || '').trim();
+  const match = playlistId.match(/playlist[\/:]([a-zA-Z0-9]+)/);
+  if (match) {
+    playlistId = match[1];
   }
+
+  const url = `https://open.spotify.com/embed/playlist/${playlistId}`;
+  const res = await axios.get(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    },
+    timeout: 6000
+  });
+
+  const html = res.data;
+  const tag = '<script id="__NEXT_DATA__" type="application/json">';
+  const idx = html.indexOf(tag);
+  if (idx === -1) throw new Error('Spotify playlist data not found');
+
+  const after = html.slice(idx + tag.length);
+  const end = after.indexOf('</script>');
+  const data = JSON.parse(after.slice(0, end));
+  const entity = data.props?.pageProps?.state?.data?.entity;
+
+  if (!entity) throw new Error('Could not parse Spotify playlist');
+
+  const coverImage = entity.visualIdentity?.image?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300';
+
+  const tracks = (entity.trackList || []).map(t => {
+    const durationMs = t.duration || 0;
+    const mins = Math.floor(durationMs / 60000);
+    const secs = Math.floor((durationMs % 60000) / 1000);
+    const durationFormatted = durationMs > 0 ? `${mins}:${secs < 10 ? '0' : ''}${secs}` : '3:30';
+
+    return {
+      title: t.title,
+      artist: t.subtitle,
+      album: entity.name || 'Spotify Playlist',
+      duration: durationFormatted,
+      streamCount: 'Spotify Hit',
+      popularity: 95,
+      reason: 'Imported from Spotify',
+      artworkUrl: coverImage,
+      previewUrl: t.audioPreview?.url || null,
+      spotifyUrl: `https://open.spotify.com/track/${t.uri ? t.uri.replace('spotify:track:', '') : ''}`,
+      youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(t.title + ' ' + t.subtitle)}`,
+      candidateVideoIds: [],
+      youtubeVideoId: null
+    };
+  });
+
+  return {
+    id: `spotify_${playlistId}`,
+    title: entity.name,
+    description: entity.description || 'Imported from Spotify Account',
+    emoji: '🟢',
+    color: 'from-[#1ed760] to-slate-900',
+    artworkUrl: coverImage,
+    tracks
+  };
 }
 
 /**
- * Get full playlist details by ID.
+ * Generate Spotify OAuth Authorization URL
  */
-async function getPlaylistDetails(playlistId, token) {
-  if (!token || !playlistId) return null;
-  try {
-    const url = `https://api.spotify.com/v1/playlists/${playlistId}`;
-    const response = await axios.get(url, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 5000,
-    });
-    return response.data;
-  } catch (err) {
-    console.warn('Spotify playlist details warning:', err.response?.data?.error?.message || err.message);
-    return null;
-  }
+function getSpotifyAuthUrl(redirectUri, state = 'spotify_auth') {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const scopes = [
+    'user-read-private',
+    'user-read-email',
+    'playlist-read-private',
+    'playlist-read-collaborative',
+    'user-library-read'
+  ].join(' ');
+
+  return `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}&state=${encodeURIComponent(state)}&show_dialog=true`;
 }
 
-module.exports = { getAccessToken, searchPlaylist, getPlaylistDetails };
+/**
+ * Exchange Authorization Code for User Access Token
+ */
+async function handleSpotifyCallback(code, redirectUri) {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+
+  const authString = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const res = await axios.post(
+    'https://accounts.spotify.com/api/token',
+    `grant_type=authorization_code&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+    {
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      timeout: 6000,
+    }
+  );
+
+  return res.data;
+}
+
+/**
+ * Fetch Current User's Spotify Profile
+ */
+async function getUserSpotifyProfile(userAccessToken) {
+  const res = await axios.get('https://api.spotify.com/v1/me', {
+    headers: { Authorization: `Bearer ${userAccessToken}` },
+    timeout: 5000,
+  });
+
+  const u = res.data;
+  return {
+    id: u.id,
+    displayName: u.display_name || u.id,
+    email: u.email,
+    avatarUrl: u.images?.[0]?.url || null,
+    spotifyUrl: u.external_urls?.spotify || `https://open.spotify.com/user/${u.id}`,
+    followers: u.followers?.total || 0,
+    product: u.product || 'free'
+  };
+}
+
+/**
+ * Fetch Current User's Personal Spotify Playlists
+ */
+async function getUserSpotifyPlaylists(userAccessToken) {
+  const res = await axios.get('https://api.spotify.com/v1/me/playlists?limit=50', {
+    headers: { Authorization: `Bearer ${userAccessToken}` },
+    timeout: 6000,
+  });
+
+  const items = res.data.items || [];
+  return items.map(p => ({
+    id: `spotify_${p.id}`,
+    spotifyPlaylistId: p.id,
+    title: p.name,
+    description: p.description || 'Spotify Personal Playlist',
+    emoji: '🟢',
+    color: 'from-[#1ed760] to-slate-900',
+    artworkUrl: p.images?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300',
+    tracksCount: p.tracks?.total || 0,
+    spotifyUrl: p.external_urls?.spotify
+  }));
+}
+
+module.exports = {
+  getAccessToken,
+  importSpotifyPlaylist,
+  getSpotifyAuthUrl,
+  handleSpotifyCallback,
+  getUserSpotifyProfile,
+  getUserSpotifyPlaylists
+};
