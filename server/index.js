@@ -154,6 +154,22 @@ const handleSpotifyCallbackRoute = async (req, res) => {
 app.get('/api/spotify/callback', handleSpotifyCallbackRoute);
 app.get('/callback', handleSpotifyCallbackRoute);
 
+// Fetch official Spotify Playlist directly by ID
+app.get('/api/spotify/playlist/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!id || !id.trim()) {
+    return res.status(400).json({ error: 'Spotify playlist ID is required' });
+  }
+
+  try {
+    const playlist = await importSpotifyPlaylist(id.trim());
+    res.json({ playlist });
+  } catch (err) {
+    console.error('Spotify playlist fetch error:', err.message);
+    res.status(500).json({ error: 'Could not fetch Spotify playlist' });
+  }
+});
+
 // Import ANY Spotify Playlist by URL or ID (Public / User shared playlist)
 app.post('/api/spotify/import', async (req, res) => {
   const { url } = req.body;

@@ -34,21 +34,22 @@ const PLAYLISTS_KEY = "aurabeat_user_playlists";
 
 const SPOTIFY_PLAYLISTS = [
   { id: "kannada", title: "Kannada Superhits", desc: "Sandalwood Mass DJ Mix", emoji: "🟡", query: "Kannada", color: "from-amber-600 to-red-700", count: "30 tracks" },
-  { id: "hindi", title: "Bollywood Party Hits", desc: "Top Hindi Club Remixes", emoji: "🇮🇳", query: "Hindi", color: "from-orange-600 to-rose-700", count: "27 tracks" },
+  { id: "hindi", title: "Bollywood Party Hits", desc: "Top Hindi Club Remixes", emoji: "🇮🇳", query: "Hindi", spotifyId: "37i9dQZF1DX0XUfTFmNBRM", color: "from-orange-600 to-rose-700", count: "50 tracks" },
   { id: "konkani", title: "Konkani Coastal Baila", desc: "Goan & Mangalore Classics", emoji: "🌴", query: "Konkani", color: "from-emerald-600 to-teal-700", count: "20 tracks" },
   { id: "telugu", title: "Telugu Blockbusters", desc: "Tollywood High-Bass Mass", emoji: "🕺", query: "Telugu", color: "from-purple-600 to-pink-700", count: "18 tracks" },
   { id: "malayalam", title: "Malayalam Viral Beats", desc: "Mollywood Party Anthems", emoji: "🥥", query: "Malayalam", color: "from-teal-600 to-emerald-700", count: "14 tracks" },
   { id: "tamil", title: "Tamil Mass Kuthu", desc: "Kollywood Dance Bangers", emoji: "✨", query: "Tamil", color: "from-orange-600 to-red-700", count: "15 tracks" },
   { id: "punjabi", title: "Punjabi Trap Hits", desc: "Urban Punjabi Hip-Hop DJ", emoji: "👳", query: "Punjabi", color: "from-rose-600 to-amber-700", count: "15 tracks" },
-  { id: "english", title: "Global Billboard 50", desc: "Worldwide Synthwave & Pop", emoji: "🇺🇸", query: "English", color: "from-blue-600 to-indigo-700", count: "14 tracks" }
+  { id: "english", title: "Global Top 50", desc: "Official Billboard Top 50", emoji: "🇺🇸", query: "English", spotifyId: "37i9dQZEVXbMDoHDwVN2tF", color: "from-blue-600 to-indigo-700", count: "50 tracks" }
 ];
 
 const SPOTIFY_BROWSE_TILES = [
-  { title: "Today's Top Hits", query: "Top Hits 2024", color: "from-emerald-600 to-teal-800", emoji: "🔥" },
-  { title: "Global Top 50", query: "Global Top 50", color: "from-blue-600 to-indigo-800", emoji: "🇺🇸" },
+  { title: "Today's Top Hits", query: "Top Hits 2024", spotifyId: "37i9dQZF1DXcBWIGoYBM5M", color: "from-emerald-600 to-teal-800", emoji: "🔥" },
+  { title: "Global Top 50", query: "Global Top 50", spotifyId: "37i9dQZEVXbMDoHDwVN2tF", color: "from-blue-600 to-indigo-800", emoji: "🇺🇸" },
+  { title: "Bollywood Butter", query: "Hindi", spotifyId: "37i9dQZF1DX0XUfTFmNBRM", color: "from-orange-600 to-rose-700", emoji: "🇮🇳" },
+  { title: "Chill Hits", query: "Lo-Fi Chill Beats", spotifyId: "37i9dQZF1DX4WYpdgoIcn6", color: "from-indigo-600 to-purple-800", emoji: "🌙" },
   { title: "Viral 50 Worldwide", query: "Viral Hits Worldwide", color: "from-violet-600 to-purple-800", emoji: "🚀" },
   { title: "Kannada Mass & DJ", query: "Kannada", color: "from-amber-600 to-red-700", emoji: "🟡" },
-  { title: "Bollywood Butter", query: "Hindi", color: "from-orange-600 to-rose-700", emoji: "🇮🇳" },
   { title: "Konkani Coastal Baila", query: "Konkani", color: "from-teal-600 to-cyan-800", emoji: "🌴" },
   { title: "Tollywood Blockbusters", query: "Telugu", color: "from-purple-600 to-pink-700", emoji: "🕺" },
   { title: "Mollywood Chill & Beats", query: "Malayalam", color: "from-emerald-700 to-green-900", emoji: "🥥" },
@@ -316,12 +317,46 @@ export default function App() {
       vibeTitle: customPl.title,
       vibeDescription: customPl.description || "Your custom Spotify playlist",
       emoji: customPl.emoji || "🎵",
-      genre: "Custom Playlist",
-      energy: "Personal Mix",
+      genre: "Spotify Playlist",
+      energy: "100% Original Spotify",
       colorTheme: ["#1ed760", "#121212"],
-      spotifyUrl: `https://open.spotify.com/search/${encodeURIComponent(customPl.title)}`,
+      artworkUrl: customPl.artworkUrl,
+      spotifyUrl: customPl.spotifyUrl || `https://open.spotify.com/search/${encodeURIComponent(customPl.title)}`,
       tracks: customPl.tracks || []
     });
+  };
+
+  const handleSelectSpotifyOfficialPlaylist = async (spotifyId, defaultTitle) => {
+    setSelectedSidebarId(`spotify_${spotifyId}`);
+    setLoading(true);
+    setError(null);
+    setActiveTab("home");
+
+    try {
+      const res = await fetch(`/api/spotify/playlist/${spotifyId}`);
+      if (!res.ok) {
+        throw new Error("Failed to load Spotify playlist");
+      }
+      const data = await res.json();
+      if (data.playlist) {
+        setPlaylist({
+          mood: data.playlist.title,
+          vibeTitle: data.playlist.title,
+          vibeDescription: data.playlist.description || "Official Spotify Playlist",
+          emoji: "🟢",
+          genre: "Official Spotify Hits",
+          energy: "100% Original Spotify",
+          colorTheme: ["#1ed760", "#121212"],
+          artworkUrl: data.playlist.artworkUrl,
+          spotifyUrl: `https://open.spotify.com/playlist/${spotifyId}`,
+          tracks: data.playlist.tracks || []
+        });
+      }
+    } catch (e) {
+      handleMoodSubmit(defaultTitle || "Top Hits");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddTrackToPlaylist = (playlistId, track) => {
@@ -883,8 +918,12 @@ export default function App() {
                     key={pl.id}
                     onClick={() => {
                       setSelectedSidebarId(pl.id);
-                      setSelectedLang(pl.query);
-                      handleMoodSubmit(pl.query);
+                      if (pl.spotifyId) {
+                        handleSelectSpotifyOfficialPlaylist(pl.spotifyId, pl.title);
+                      } else {
+                        setSelectedLang(pl.query);
+                        handleMoodSubmit(pl.query);
+                      }
                     }}
                     className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all group ${
                       isSelected ? "bg-[#282828] border-l-4 border-[#1ed760]" : "hover:bg-[#282828]/60"
@@ -1239,7 +1278,13 @@ export default function App() {
                       {SPOTIFY_BROWSE_TILES.map((tile, i) => (
                         <div
                           key={i}
-                          onClick={() => handleMoodSubmit(tile.query)}
+                          onClick={() => {
+                            if (tile.spotifyId) {
+                              handleSelectSpotifyOfficialPlaylist(tile.spotifyId, tile.title);
+                            } else {
+                              handleMoodSubmit(tile.query);
+                            }
+                          }}
                           className={`relative h-28 sm:h-36 rounded-2xl p-4 bg-gradient-to-br ${tile.color} cursor-pointer hover:scale-[1.02] active:scale-95 transition-all shadow-lg overflow-hidden flex flex-col justify-between group`}
                         >
                           <h3 className="text-sm sm:text-base font-extrabold text-white leading-tight">

@@ -990,6 +990,17 @@ export default function Player({
     setCurrentTrack(track);
     setCurrentTime(0);
 
+    // Auto-resolve 600x600 HD album artwork DP & audio preview if missing
+    fetch(`/api/track-audio?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.artwork && (!track.artworkUrl || track.artworkUrl.includes('unsplash') || track.artworkUrl.includes('placeholder'))) {
+          setCurrentTrack(prev => (prev && prev.title.toLowerCase() === track.title.toLowerCase()) ? { ...prev, artworkUrl: data.artwork } : prev);
+          setTracks(prev => prev.map(t => (t.title.toLowerCase() === track.title.toLowerCase()) ? { ...t, artworkUrl: data.artwork } : t));
+        }
+      })
+      .catch(() => {});
+
     if (isAiDjActive) {
       speakDjIntro(track);
     }
@@ -1446,7 +1457,7 @@ export default function Player({
         {/* Cover Art */}
         <div className="relative w-44 h-44 sm:w-56 sm:h-56 rounded-lg overflow-hidden shadow-2xl flex-shrink-0 bg-[#282828] border border-white/10 group">
           <img 
-            src={activeTrack?.artworkUrl || (activeTrack?.youtubeVideoId ? `https://i.ytimg.com/vi/${activeTrack.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80`)} 
+            src={playlist?.artworkUrl || activeTrack?.artworkUrl || (activeTrack?.youtubeVideoId ? `https://i.ytimg.com/vi/${activeTrack.youtubeVideoId}/hqdefault.jpg` : `https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&auto=format&fit=crop&q=80`)} 
             alt={vibeTitle}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             onError={(e) => {
