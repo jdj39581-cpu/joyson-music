@@ -130,6 +130,9 @@ export default function App() {
   const [importingSpotify, setImportingSpotify] = useState(false);
   const [spotifyImportError, setSpotifyImportError] = useState(null);
   const [copiedRedirectUri, setCopiedRedirectUri] = useState(false);
+  const [spotifyDirectToken, setSpotifyDirectToken] = useState("");
+  const [syncingSpotify, setSyncingSpotify] = useState(false);
+  const [customCallbackUri, setCustomCallbackUri] = useState("");
 
   // Parse Spotify OAuth callback on load
   useEffect(() => {
@@ -333,7 +336,9 @@ export default function App() {
     setActiveTab("home");
 
     try {
-      const res = await fetch(`/api/spotify/playlist/${spotifyId}`);
+      const token = localStorage.getItem("aurabeat_spotify_token") || "";
+      const headers = token ? { "Authorization": "Bearer " + token } : {};
+      const res = await fetch(`/api/spotify/playlist/${spotifyId}`, { headers });
       if (!res.ok) {
         throw new Error("Failed to load Spotify playlist");
       }
@@ -667,12 +672,45 @@ export default function App() {
                     Log in with your official Spotify account to sync your private playlists and library.
                   </p>
                   <button
-                    onClick={() => { window.location.href = '/api/spotify/login'; }}
+                    onClick={() => {
+                      const targetRedirect = customCallbackUri.trim() || (typeof window !== 'undefined' ? `${window.location.origin}/api/spotify/callback` : '');
+                      window.location.href = `/api/spotify/login?redirect_uri=${encodeURIComponent(targetRedirect)}`;
+                    }}
                     className="w-full py-2.5 px-4 bg-white hover:bg-white/90 text-black font-extrabold rounded-full text-xs flex items-center justify-center gap-2 shadow-lg hover:scale-[1.02] active:scale-95 transition-all"
                   >
                     <SpotifyIcon className="w-4 h-4 fill-black" />
                     <span>Connect Official Spotify Account</span>
                   </button>
+
+                  {/* Direct Spotify Token Paste Option */}
+                  <div className="p-3 bg-[#181818] rounded-xl border border-white/10 space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-[#1ed760]" />
+                        <span>Instant Connect with Spotify Access Token</span>
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#b3b3b3]">
+                      Have a token from Spotify Web Console? Paste it to connect instantly without redirect setup:
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="password"
+                        value={spotifyDirectToken}
+                        onChange={(e) => setSpotifyDirectToken(e.target.value)}
+                        placeholder="Paste user token (Bearer ...)"
+                        className="flex-1 px-3 py-1.5 bg-black border border-[#3e3e3e] focus:border-[#1ed760] rounded-lg text-xs text-white placeholder-[#757575] focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        disabled={syncingSpotify || !spotifyDirectToken.trim()}
+                        onClick={() => handleConnectWithToken()}
+                        className="px-3.5 py-1.5 bg-[#1ed760] hover:bg-[#1fdf64] disabled:opacity-50 text-black font-extrabold text-xs rounded-lg transition-all"
+                      >
+                        {syncingSpotify ? "Verifying..." : "Connect"}
+                      </button>
+                    </div>
+                  </div>
 
                   {/* Fix "redirect_uri: Not matching configuration" explanation box */}
                   <div className="p-3 bg-[#181818] rounded-xl border border-amber-500/30 text-left space-y-2">
@@ -1363,51 +1401,47 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB 3: HOME / ACTIVE PLAYLIST VIEW */}
-            {activeTab === "home" && (
-              <>
-                {/* Loading State */}
-                {loading && (
-                  <div className="w-full py-20 flex flex-col items-center justify-center space-y-4 bg-[#181818]/60 rounded-3xl border border-[#282828]">
-                    <div className="w-12 h-12 rounded-full border-4 border-[#1ed760]/20 border-t-[#1ed760] animate-spin" />
-                    <div className="text-center space-y-1">
-                      <h3 className="text-base sm:text-lg font-bold text-white">Loading Spotify Master Playlist…</h3>
-                      <p className="text-xs text-[#b3b3b3]">Curating top blockbuster songs with full synchronized lyrics...</p>
-                    </div>
-                  </div>
-                )}
+            {/* Loading State for Home */}
+            {loading && activeTab === "home" && (
+              <div className="w-full py-20 flex flex-col items-center justify-center space-y-4 bg-[#181818]/60 rounded-3xl border border-[#282828]">
+                <div className="w-12 h-12 rounded-full border-4 border-[#1ed760]/20 border-t-[#1ed760] animate-spin" />
+                <div className="text-center space-y-1">
+                  <h3 className="text-base sm:text-lg font-bold text-white">Loading Spotify Master Playlist…</h3>
+                  <p className="text-xs text-[#b3b3b3]">Curating top blockbuster songs with full synchronized lyrics...</p>
+                </div>
+              </div>
+            )}
 
-                {/* Error Banner */}
-                {error && !loading && (
-                  <div className="w-full p-4 bg-rose-950/60 border border-rose-800 rounded-2xl flex items-center justify-between gap-4 text-rose-300 text-xs sm:text-sm">
-                    <div className="flex items-center gap-3">
-                      <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                    {lastMood && (
-                      <button
-                        onClick={() => handleMoodSubmit(lastMood)}
-                        className="px-3.5 py-1.5 bg-rose-900 hover:bg-rose-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Retry</span>
-                      </button>
-                    )}
-                  </div>
+            {/* Error Banner */}
+            {error && !loading && (
+              <div className="w-full p-4 bg-rose-950/60 border border-rose-800 rounded-2xl flex items-center justify-between gap-4 text-rose-300 text-xs sm:text-sm">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+                {lastMood && (
+                  <button
+                    onClick={() => handleMoodSubmit(lastMood)}
+                    className="px-3.5 py-1.5 bg-rose-900 hover:bg-rose-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Retry</span>
+                  </button>
                 )}
+              </div>
+            )}
 
-                {/* Player Component */}
-                {playlist && !loading && (
-                  <Player 
-                    playlist={playlist} 
-                    userPlaylists={userPlaylists}
-                    onRefreshPlaylist={handleMoodSubmit}
-                    onSelectLanguage={handleLanguageSelect}
-                    onAddTrackToPlaylist={handleAddTrackToPlaylist}
-                    onCreatePlaylist={() => setShowCreatePlaylistModal(true)}
-                  />
-                )}
-              </>
+            {/* Persistent Player Component (Never unmounts across Home, Search, or Library!) */}
+            {playlist && (
+              <Player 
+                playlist={playlist} 
+                userPlaylists={userPlaylists}
+                onRefreshPlaylist={handleMoodSubmit}
+                onSelectLanguage={handleLanguageSelect}
+                onAddTrackToPlaylist={handleAddTrackToPlaylist}
+                onCreatePlaylist={() => setShowCreatePlaylistModal(true)}
+                activeTab={activeTab}
+              />
             )}
           </div>
 

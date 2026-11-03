@@ -18,6 +18,7 @@ const {
 const { 
   getAccessToken,
   importSpotifyPlaylist,
+  getSpotifyPlaylist,
   getSpotifyAuthUrl,
   handleSpotifyCallback,
   getUserSpotifyProfile,
@@ -96,17 +97,32 @@ app.get('/api/candidate-videos', async (req, res) => {
 
 // Helper to reliably construct or override Spotify OAuth Redirect URI
 function resolveSpotifyRedirectUri(req) {
+  if (req && req.query && typeof req.query.redirect_uri === 'string' && req.query.redirect_uri.trim()) {
+    return req.query.redirect_uri.trim();
+  }
+  const referer = (req && req.headers ? (req.headers['referer'] || req.headers['origin'] || '') : '');
+  const host = (req && req.get ? (req.get('host') || '') : '');
+  const isLocal = referer.includes('localhost') || referer.includes('127.0.0.1') || host.includes('localhost') || host.includes('127.0.0.1');
+
+  if (isLocal) {
+    let port = '5173';
+    if (referer.includes(':4000') || host.includes(':4000')) {
+      port = '4000';
+    } else if (referer.includes(':5173')) {
+      port = '5173';
+    }
+    return 'http://localhost:' + port + '/api/spotify/callback';
+  }
+
   if (process.env.SPOTIFY_REDIRECT_URI && process.env.SPOTIFY_REDIRECT_URI.trim()) {
     return process.env.SPOTIFY_REDIRECT_URI.trim();
   }
-  const protoHeader = req.headers['x-forwarded-proto'];
-  const host = req.get('host') || 'joyson-music.onrender.com';
-  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
-  const protocol = isLocal ? 'http' : (protoHeader ? protoHeader.split(',')[0].trim() : req.protocol || 'https');
-  return `${protocol}://${host}/api/spotify/callback`;
+
+  const protoHeader = req && req.headers ? req.headers['x-forwarded-proto'] : null;
+  const protocol = protoHeader ? protoHeader.split(',')[0].trim() : (req && req.protocol ? req.protocol : 'https');
+  return protocol + '://' + (host || 'joyson-music.onrender.com') + '/api/spotify/callback';
 }
 
-// Spotify OAuth Configuration Info Endpoint (used by frontend to show exact callback URL)
 app.get('/api/spotify/config', (req, res) => {
   const redirectUri = resolveSpotifyRedirectUri(req);
   const clientId = process.env.SPOTIFY_CLIENT_ID || '83259f32ab8246e5b33fd0b0789437b2';
@@ -120,17 +136,32 @@ app.get('/api/spotify/config', (req, res) => {
 // Spotify Account OAuth Login
 app.get('/api/spotify/login', (req, res) => {
   const redirectUri = resolveSpotifyRedirectUri(req);
-  const url = getSpotifyAuthUrl(redirectUri);
+  const referer = req.headers['referer'] || '/';
+  const statePayload = Buffer.from(JSON.stringify({
+    redirectUri,
+    returnUrl: referer
+  })).toString('base64');
+  const url = getSpotifyAuthUrl(redirectUri, statePayload);
   res.redirect(url);
 });
 
 // Spotify OAuth Callback Handler
 const handleSpotifyCallbackRoute = async (req, res) => {
-  const { code, error } = req.query;
-  const redirectUri = resolveSpotifyRedirectUri(req);
+  const { code, error, state } = req.query;
+  let redirectUri = resolveSpotifyRedirectUri(req);
+  let returnUrl = '/';
+
+  if (state) {
+    try {
+      const decoded = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
+      if (decoded.redirectUri) redirectUri = decoded.redirectUri;
+      if (decoded.returnUrl) returnUrl = decoded.returnUrl;
+    } catch (e) {}
+  }
 
   if (error || !code) {
-    return res.redirect('/?spotify_error=' + encodeURIComponent(error || 'Authorization denied'));
+    const errorTarget = returnUrl.includes('?') ? returnUrl + '&spotify_error=' + encodeURIComponent(error || 'Authorization denied') : returnUrl + '?spotify_error=' + encodeURIComponent(error || 'Authorization denied');
+    return res.redirect(errorTarget);
   }
 
   try {
@@ -144,25 +175,43 @@ const handleSpotifyCallbackRoute = async (req, res) => {
       playlists
     }));
 
-    res.redirect(`/#spotify_connected=${userPayload}`);
+    const cleanReturn = returnUrl.split('#')[0];
+    res.redirect(cleanReturn + '#spotify_connected=' + userPayload);
   } catch (err) {
     console.error('Spotify callback error:', err.response?.data || err.message);
-    res.redirect('/?spotify_error=Failed to link Spotify account');
+    const errorTarget = returnUrl.includes('?') ? returnUrl + '&spotify_error=Failed to link Spotify account' : returnUrl + '?spotify_error=Failed to link Spotify account';
+    res.redirect(errorTarget);
   }
 };
 
 app.get('/api/spotify/callback', handleSpotifyCallbackRoute);
 app.get('/callback', handleSpotifyCallbackRoute);
 
-// Fetch official Spotify Playlist directly by ID
+// Fetch current user's personal playlists with their token
+app.get('/api/spotify/user-playlists', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.slice(7) : (req.query.token || null);
+  if (!token) return res.status(401).json({ error: 'Spotify access token required' });
+  try {
+    const playlists = await getUserSpotifyPlaylists(token);
+    res.json({ playlists });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch user Spotify playlists' });
+  }
+});
+
+// Fetch official or personal Spotify Playlist directly by ID
 app.get('/api/spotify/playlist/:id', async (req, res) => {
   const { id } = req.params;
+  const authHeader = req.headers['authorization'];
+  const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.slice(7) : (req.query.token || null);
+
   if (!id || !id.trim()) {
     return res.status(400).json({ error: 'Spotify playlist ID is required' });
   }
 
   try {
-    const playlist = await importSpotifyPlaylist(id.trim());
+    const playlist = await getSpotifyPlaylist(id.trim(), token);
     res.json({ playlist });
   } catch (err) {
     console.error('Spotify playlist fetch error:', err.message);

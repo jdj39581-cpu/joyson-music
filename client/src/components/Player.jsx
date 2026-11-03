@@ -492,7 +492,8 @@ export default function Player({
   userPlaylists = [], 
   onSelectLanguage, 
   onAddTrackToPlaylist, 
-  onCreatePlaylist 
+  onCreatePlaylist,
+  activeTab = "home"
 }) {
   const { 
     mood,
@@ -584,6 +585,7 @@ export default function Player({
   const sleepTimerRef = useRef(null);
   const syncIntervalRef = useRef(null);
   const isDraggingScrubberRef = useRef(false);
+  const isFirstMountRef = useRef(true);
   const lyricsContainerRef = useRef(null);
   const activeLyricRef = useRef(null);
 
@@ -787,15 +789,22 @@ export default function Player({
     setTracks(unique);
     setCurrentTrack(unique[0] || null);
     setCurrentTrackIndex(0);
-    setIsPlaying(false);
     setCurrentTime(0);
     setDuration(210);
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-    }
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.stopVideo === 'function') {
-      try { ytPlayerRef.current.stopVideo(); } catch (e) {}
+
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      setIsPlaying(false);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.stopVideo === 'function') {
+        try { ytPlayerRef.current.stopVideo(); } catch (e) {}
+      }
+    } else if (unique.length > 0) {
+      // Auto-play selected track on playlist click
+      playTrack(unique[0]);
     }
   }, [playlist, initialTracks]);
 
@@ -1161,6 +1170,10 @@ export default function Player({
 
   const loadMoreSongs = async () => {
     if (autoLoadingMore) return;
+    // Strict isolation: Never inject foreign or random songs into an authentic Spotify or custom playlist
+    if (playlist?.isSpotify || playlist?.id?.startsWith('spotify_') || genre === "Official Spotify Hits" || genre === "Spotify Playlist") {
+      return;
+    }
     setAutoLoadingMore(true);
     try {
       const existingTitles = tracks.map(t => t.title);
@@ -1413,7 +1426,9 @@ export default function Player({
         onEnded={handleNextTrack}
       />
 
-      {/* Spotify Top Greeting & 6 Quick-Access Cards */}
+      {/* Upper Spotify Playlist Content (Visible when activeTab === "home") */}
+      <div className={activeTab === "home" ? "space-y-6" : "hidden"}>
+        {/* Spotify Top Greeting & 6 Quick-Access Cards */}
       <div className="space-y-3">
         <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
           {getGreeting()}
@@ -1758,7 +1773,16 @@ export default function Player({
           <div 
             onScroll={(e) => {
               const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
-              if (scrollTop + clientHeight >= scrollHeight - 350 && !autoLoadingMore && !showLikedOnly && !filterQuery) {
+              if (
+                scrollTop + clientHeight >= scrollHeight - 350 && 
+                !autoLoadingMore && 
+                !showLikedOnly && 
+                !filterQuery &&
+                !playlist?.isSpotify && 
+                !playlist?.id?.startsWith('spotify_') && 
+                genre !== "Official Spotify Hits" &&
+                genre !== "Spotify Playlist"
+              ) {
                 loadMoreSongs();
               }
             }}
@@ -1858,6 +1882,7 @@ export default function Player({
             )}
           </div>
         )}
+      </div>
       </div>
 
       {/* =========================================================================
