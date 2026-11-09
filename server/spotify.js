@@ -92,33 +92,29 @@ async function importSpotifyPlaylist(playlistIdOrUrl) {
 
   const rawTrackList = entity.trackList || [];
 
-  // Concurrently resolve 600x600 HD album artwork DP for every track in batches
-  const batchSize = 10;
-  const resolvedArtworks = new Array(rawTrackList.length);
+  // Fast artwork resolution: default to high-res playlist coverImage, and concurrently resolve top tracks
+  const resolvedArtworks = new Array(rawTrackList.length).fill(coverImage);
+  const topTracks = rawTrackList.slice(0, 12);
 
-  for (let i = 0; i < rawTrackList.length; i += batchSize) {
-    const batch = rawTrackList.slice(i, i + batchSize);
-    await Promise.all(
-      batch.map(async (t, bIdx) => {
-        const globalIdx = i + bIdx;
-        try {
-          const cleanTitle = (t.title || '').split('(')[0].split('-')[0].trim();
-          const cleanArtist = (t.subtitle || '').split(',')[0].split('&')[0].trim();
-          if (!cleanTitle) return;
-          const itunesRes = await axios.get(
-            `https://itunes.apple.com/search?term=${encodeURIComponent(cleanTitle + ' ' + cleanArtist)}&entity=song&limit=1`,
-            { timeout: 2000 }
-          );
-          const item = itunesRes.data?.results?.[0];
-          if (item && item.artworkUrl100) {
-            resolvedArtworks[globalIdx] = item.artworkUrl100
-              .replace('100x100bb.jpg', '600x600bb.jpg')
-              .replace('100x100bb', '600x600bb');
-          }
-        } catch (e) {}
-      })
-    );
-  }
+  await Promise.allSettled(
+    topTracks.map(async (t, idx) => {
+      try {
+        const cleanTitle = (t.title || '').split('(')[0].split('-')[0].trim();
+        const cleanArtist = (t.subtitle || '').split(',')[0].split('&')[0].trim();
+        if (!cleanTitle) return;
+        const itunesRes = await axios.get(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(cleanTitle + ' ' + cleanArtist)}&entity=song&limit=1`,
+          { timeout: 900 }
+        );
+        const item = itunesRes.data?.results?.[0];
+        if (item && item.artworkUrl100) {
+          resolvedArtworks[idx] = item.artworkUrl100
+            .replace('100x100bb.jpg', '600x600bb.jpg')
+            .replace('100x100bb', '600x600bb');
+        }
+      } catch (e) {}
+    })
+  );
 
   // Map only the exact tracks present in the Spotify playlist in their original sequence
   const tracks = rawTrackList.map((t, idx) => {
