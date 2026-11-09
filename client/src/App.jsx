@@ -1552,6 +1552,10 @@ export default function App() {
                 onSelectLanguage={handleLanguageSelect}
                 onAddTrackToPlaylist={handleAddTrackToPlaylist}
                 onCreatePlaylist={() => setShowCreatePlaylistModal(true)}
+                spotifyUser={spotifyUser}
+                onRefreshSpotifyPlaylists={() => setShowSpotifyModal(true)}
+                onSelectPlaylist={handleSelectCustomPlaylist}
+                onOpenSpotifyModal={() => setShowSpotifyModal(true)}
                 activeTab={activeTab}
               />
             )}

@@ -491,6 +491,10 @@ export default function Player({
   playlist, 
   onRefreshPlaylist, 
   userPlaylists = [], 
+  spotifyUser = null,
+  onRefreshSpotifyPlaylists = null,
+  onSelectPlaylist = null,
+  onOpenSpotifyModal = null,
   onSelectLanguage, 
   onAddTrackToPlaylist, 
   onCreatePlaylist,
@@ -642,9 +646,10 @@ export default function Player({
             if (ytPlayerRef.current && typeof ytPlayerRef.current.getPlayerState === 'function') {
               try {
                 const state = ytPlayerRef.current.getPlayerState();
-                if (state !== 1 && activeTrack) {
+                const trackToPlay = currentTrack || tracks[0];
+                if (state !== 1 && trackToPlay) {
                   const curTime = ytPlayerRef.current.getCurrentTime() || 0;
-                  playHtml5Audio(activeTrack, curTime);
+                  playHtml5Audio(trackToPlay, curTime);
                 }
               } catch (e) {}
             }
@@ -661,7 +666,7 @@ export default function Player({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releaseWakeLock();
     };
-  }, [isPlaying, wakeLockActive, activeTrack]);
+  }, [isPlaying, wakeLockActive, currentTrack, tracks]);
 
   // Load YouTube IFrame API for Full Length Songs
   useEffect(() => {
@@ -716,8 +721,9 @@ export default function Player({
               }
             },
             onError: () => {
-              if (audioRef.current && activeTrack?.previewUrl) {
-                audioRef.current.src = activeTrack.previewUrl;
+              const fallbackTrack = currentTrack || tracks[0];
+              if (audioRef.current && fallbackTrack?.previewUrl) {
+                audioRef.current.src = fallbackTrack.previewUrl;
                 audioRef.current.play().catch(() => {});
               }
             }
@@ -1503,7 +1509,7 @@ export default function Player({
                   <SpotifyIcon className="w-3.5 h-3.5 fill-black" />
                 </div>
                 <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                  Your Spotify Playlists ({spotifyUser.displayName || spotifyUser.id})
+                  Your Spotify Playlists ({spotifyUser?.display_name || spotifyUser?.displayName || spotifyUser?.id || "Account"})
                 </h3>
               </div>
               {onRefreshSpotifyPlaylists && (
