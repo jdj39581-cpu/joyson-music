@@ -778,9 +778,9 @@ export default function Player({
   useEffect(() => {
     // Strictly deduplicate incoming tracks to ensure zero duplicates
     const seen = new Set();
-    const unique = (initialTracks || []).filter(t => {
+    const unique = (initialTracks || []).filter((t, idx) => {
       if (!t || !t.title) return false;
-      const k = (t.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const k = `${(t.title || '').toLowerCase()}_${(t.artist || '').toLowerCase()}_${t.uri || t.id || idx}`;
       if (seen.has(k)) return false;
       seen.add(k);
       return true;

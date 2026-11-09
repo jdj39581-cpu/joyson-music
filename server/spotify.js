@@ -55,6 +55,17 @@ const spotifyPlaylistCache = new Map();
  */
 async function importSpotifyPlaylist(playlistIdOrUrl) {
   let playlistId = (playlistIdOrUrl || '').trim();
+
+  // Support shortened spotify.link or spoti.fi URLs
+  if (playlistId.includes('spotify.link') || playlistId.includes('spoti.fi')) {
+    try {
+      const redirectRes = await axios.head(playlistId, { maxRedirects: 5, timeout: 5000 });
+      if (redirectRes.request?.res?.responseUrl) {
+        playlistId = redirectRes.request.res.responseUrl;
+      }
+    } catch (e) {}
+  }
+
   const match = playlistId.match(/playlist[\/:]([a-zA-Z0-9]+)/);
   if (match) {
     playlistId = match[1];
@@ -92,33 +103,29 @@ async function importSpotifyPlaylist(playlistIdOrUrl) {
 
   const rawTrackList = entity.trackList || [];
 
-  // Concurrently resolve 600x600 HD album artwork DP for every track in batches
-  const batchSize = 10;
-  const resolvedArtworks = new Array(rawTrackList.length);
+  // Fast artwork resolution: default to high-res playlist coverImage, and concurrently resolve top tracks
+  const resolvedArtworks = new Array(rawTrackList.length).fill(coverImage);
+  const topTracks = rawTrackList.slice(0, 15);
 
-  for (let i = 0; i < rawTrackList.length; i += batchSize) {
-    const batch = rawTrackList.slice(i, i + batchSize);
-    await Promise.all(
-      batch.map(async (t, bIdx) => {
-        const globalIdx = i + bIdx;
-        try {
-          const cleanTitle = (t.title || '').split('(')[0].split('-')[0].trim();
-          const cleanArtist = (t.subtitle || '').split(',')[0].split('&')[0].trim();
-          if (!cleanTitle) return;
-          const itunesRes = await axios.get(
-            `https://itunes.apple.com/search?term=${encodeURIComponent(cleanTitle + ' ' + cleanArtist)}&entity=song&limit=1`,
-            { timeout: 2000 }
-          );
-          const item = itunesRes.data?.results?.[0];
-          if (item && item.artworkUrl100) {
-            resolvedArtworks[globalIdx] = item.artworkUrl100
-              .replace('100x100bb.jpg', '600x600bb.jpg')
-              .replace('100x100bb', '600x600bb');
-          }
-        } catch (e) {}
-      })
-    );
-  }
+  await Promise.allSettled(
+    topTracks.map(async (t, idx) => {
+      try {
+        const cleanTitle = (t.title || '').split('(')[0].split('-')[0].trim();
+        const cleanArtist = (t.subtitle || '').split(',')[0].split('&')[0].trim();
+        if (!cleanTitle) return;
+        const itunesRes = await axios.get(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(cleanTitle + ' ' + cleanArtist)}&entity=song&limit=1`,
+          { timeout: 900 }
+        );
+        const item = itunesRes.data?.results?.[0];
+        if (item && item.artworkUrl100) {
+          resolvedArtworks[idx] = item.artworkUrl100
+            .replace('100x100bb.jpg', '600x600bb.jpg')
+            .replace('100x100bb', '600x600bb');
+        }
+      } catch (e) {}
+    })
+  );
 
   // Map only the exact tracks present in the Spotify playlist in their original sequence
   const tracks = rawTrackList.map((t, idx) => {
@@ -262,48 +269,56 @@ async function getSpotifyPlaylist(playlistIdOrUrl, userAccessToken = null) {
       });
       const playlistDetails = detailsRes.data;
 
-      const tracksRes = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`, {
-        headers: { Authorization: `Bearer ${userAccessToken}` },
-        timeout: 6000
-      });
-      const items = tracksRes.data.items || [];
-      const tracks = items.map((item, idx) => {
-        const t = item.track;
-        if (!t || !t.name) return null;
-        const durationMs = t.duration_ms || 0;
-        const mins = Math.floor(durationMs / 60000);
-        const secs = Math.floor((durationMs % 60000) / 1000);
-        const durationFormatted = durationMs > 0 ? `${mins}:${secs < 10 ? '0' : ''}${secs}` : '3:30';
-        const artistNames = (t.artists || []).map(a => a.name).join(', ');
-        const artwork = t.album?.images?.[0]?.url || playlistDetails?.images?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
+      let allTracks = [];
+      let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
+      let pageCount = 0;
 
-        return {
-          title: t.name,
-          artist: artistNames,
-          album: t.album?.name || playlistDetails?.name || 'Spotify Track',
-          duration: durationFormatted,
-          streamCount: 'Spotify Official',
-          popularity: t.popularity || 85,
-          reason: 'Official Spotify Track',
-          artworkUrl: artwork,
-          previewUrl: t.preview_url || null,
-          spotifyUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
-          youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(t.name + ' ' + artistNames)}`,
-          candidateVideoIds: [],
-          youtubeVideoId: null,
-          isSpotify: true
-        };
-      }).filter(Boolean);
+      while (nextUrl && pageCount < 20) {
+        pageCount++;
+        const tracksRes = await axios.get(nextUrl, {
+          headers: { Authorization: `Bearer ${userAccessToken}` },
+          timeout: 7000
+        });
+        const items = tracksRes.data.items || [];
+        for (const item of items) {
+          const t = item.track;
+          if (!t || !t.name) continue;
+          const durationMs = t.duration_ms || 0;
+          const mins = Math.floor(durationMs / 60000);
+          const secs = Math.floor((durationMs % 60000) / 1000);
+          const durationFormatted = durationMs > 0 ? `${mins}:${secs < 10 ? '0' : ''}${secs}` : '3:30';
+          const artistNames = (t.artists || []).map(a => a.name).join(', ');
+          const artwork = t.album?.images?.[0]?.url || playlistDetails?.images?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
 
-      if (tracks.length > 0) {
+          allTracks.push({
+            title: t.name,
+            artist: artistNames,
+            album: t.album?.name || playlistDetails?.name || 'Spotify Track',
+            duration: durationFormatted,
+            streamCount: 'Spotify Official',
+            popularity: t.popularity || 85,
+            reason: 'Official Spotify Track',
+            artworkUrl: artwork,
+            previewUrl: t.preview_url || null,
+            spotifyUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
+            youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(t.name + ' ' + artistNames)}`,
+            candidateVideoIds: [],
+            youtubeVideoId: null,
+            isSpotify: true
+          });
+        }
+        nextUrl = tracksRes.data.next;
+      }
+
+      if (allTracks.length > 0) {
         return {
           id: `spotify_${playlistId}`,
           title: playlistDetails?.name || 'Spotify Playlist',
           description: playlistDetails?.description || 'Official Spotify Playlist',
           emoji: '🟢',
           color: 'from-[#1ed760] to-slate-900',
-          artworkUrl: playlistDetails?.images?.[0]?.url || tracks[0]?.artworkUrl || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
-          tracks,
+          artworkUrl: playlistDetails?.images?.[0]?.url || allTracks[0]?.artworkUrl || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
+          tracks: allTracks,
           isSpotify: true
         };
       }

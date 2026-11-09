@@ -169,9 +169,14 @@ export default function App() {
     setSpotifyImportError(null);
 
     try {
+      const token = localStorage.getItem("aurabeat_spotify_token") || "";
+      const headers = {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      };
       const res = await fetch("/api/spotify/import", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ url: targetUrl })
       });
 

@@ -227,7 +227,23 @@ app.post('/api/spotify/import', async (req, res) => {
   }
 
   try {
-    const playlist = await importSpotifyPlaylist(url.trim());
+    const authHeader = req.headers['authorization'];
+    const userToken = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.slice(7) : null;
+    let playlistId = url.trim();
+    const match = playlistId.match(/playlist[\/:]([a-zA-Z0-9]+)/);
+    if (match) playlistId = match[1];
+
+    let playlist;
+    if (userToken) {
+      try {
+        playlist = await getSpotifyPlaylist(playlistId, userToken);
+      } catch (e) {
+        playlist = await importSpotifyPlaylist(url.trim());
+      }
+    } else {
+      playlist = await importSpotifyPlaylist(url.trim());
+    }
+
     res.json({ playlist });
   } catch (err) {
     console.error('Spotify import error:', err.message);
