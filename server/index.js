@@ -34,6 +34,7 @@ app.use(bodyParser.json());
 
 // Serve static React build in production
 const distPath = path.join(__dirname, '../client/dist');
+app.use('/assets', express.static(path.join(distPath, 'assets'), { maxAge: '1y', immutable: true }));
 app.use(express.static(distPath));
 
 // Proactively warm up Spotify token on launch
@@ -361,6 +362,10 @@ app.post('/api/more-tracks', async (req, res) => {
 
 // Fallback for SPA routing in production
 app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/') || req.path.startsWith('/assets/')) {
+    return res.status(404).send('Not Found');
+  }
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
