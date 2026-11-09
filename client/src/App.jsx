@@ -9,11 +9,7 @@ import {
   Heart, 
   Sparkles, 
   AlertCircle, 
-  RefreshCw,
-  RotateCw,
-  Tv,
-  ExternalLink,
-  UserCheck, 
+  RefreshCw, 
   Smartphone, 
   QrCode, 
   X, 
@@ -32,71 +28,6 @@ import {
   Loader2
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-
-const DEFAULT_PLAYLIST = {
-  id: "kannada",
-  mood: "Kannada Superhits",
-  vibeTitle: "Kannada Superhits",
-  vibeDescription: "Top Sandalwood Mass & Melodies • 100% Free & Ad-Free",
-  emoji: "🟡",
-  genre: "Kannada Mass",
-  energy: "98% High Energy",
-  colorTheme: ["#1ed760", "#121212"],
-  artworkUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600",
-  spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DX6Thddij2336",
-  tracks: [
-    {
-      title: "Ra Ra Rakkamma",
-      artist: "Nakash Aziz, Sunidhi Chauhan",
-      album: "Vikrant Rona",
-      duration: "3:45",
-      artworkUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300",
-      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/6c/d1/8a/6cd18ab5-f0e2-63aa-8d02-e2c7a7ea9db2/mzaf_10574971840003058866.plus.aac.p.m4a",
-      youtubeVideoId: "7sWwLgT1B98",
-      spotifyUrl: "https://open.spotify.com/search/Ra%20Ra%20Rakkamma"
-    },
-    {
-      title: "Singara Siriye",
-      artist: "Vijay Prakash, Ananya Bhat",
-      album: "Kantara",
-      duration: "4:42",
-      artworkUrl: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300",
-      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/33/c4/7a/33c47a50-2f1a-b0a7-bc13-bfa58826d9c6/mzaf_12403759972304951475.plus.aac.p.m4a",
-      youtubeVideoId: "1pM11YQ_L_o",
-      spotifyUrl: "https://open.spotify.com/search/Singara%20Siriye"
-    },
-    {
-      title: "Belakina Kavithe",
-      artist: "Sanjith Hegde, Sangeetha Katti",
-      album: "Banaras",
-      duration: "4:12",
-      artworkUrl: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300",
-      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/0c/39/3c/0c393ce0-0f30-f203-d023-e2003cba7c03/mzaf_10915354508492290408.plus.aac.p.m4a",
-      youtubeVideoId: "g5J0Qz1bQyA",
-      spotifyUrl: "https://open.spotify.com/search/Belakina%20Kavithe"
-    },
-    {
-      title: "Dwapara",
-      artist: "Jaskaran Singh",
-      album: "Krishnam Pranaya Sakhi",
-      duration: "3:58",
-      artworkUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300",
-      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/44/e9/87/44e9877e-97ec-ca37-8854-46c03dcda9ec/mzaf_16480579998188172906.plus.aac.p.m4a",
-      youtubeVideoId: "bYg2_N85TfA",
-      spotifyUrl: "https://open.spotify.com/search/Dwapara"
-    },
-    {
-      title: "Tagaru Banthu Tagaru",
-      artist: "Anthony Daasan",
-      album: "Tagaru",
-      duration: "3:25",
-      artworkUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300",
-      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/e5/bd/a6/e5bda616-e41c-81bb-623e-634d1b82fa46/mzaf_15082498701389814457.plus.aac.p.m4a",
-      youtubeVideoId: "u_s1iWpC7aQ",
-      spotifyUrl: "https://open.spotify.com/search/Tagaru%20Banthu%20Tagaru"
-    }
-  ]
-};
 
 const HISTORY_KEY = "aurabeat_mood_history";
 const PLAYLISTS_KEY = "aurabeat_user_playlists";
@@ -158,7 +89,7 @@ function SpotifyIcon({ className = "w-4 h-4" }) {
 }
 
 export default function App() {
-  const [playlist, setPlaylist] = useState(DEFAULT_PLAYLIST);
+  const [playlist, setPlaylist] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);
@@ -202,8 +133,6 @@ export default function App() {
   const [spotifyDirectToken, setSpotifyDirectToken] = useState("");
   const [syncingSpotify, setSyncingSpotify] = useState(false);
   const [customCallbackUri, setCustomCallbackUri] = useState("");
-  const [spotifyUsernameInput, setSpotifyUsernameInput] = useState("");
-  const [fetchingByUser, setFetchingByUser] = useState(false);
 
   // Parse Spotify OAuth callback on load
   useEffect(() => {
@@ -693,47 +622,6 @@ export default function App() {
                   ))}
                 </div>
               </div>
-            </div>
-
-            {/* SECTION 1.5: Instant Import by Spotify Username / Profile URL (Zero Setup) */}
-            <div className="p-4 bg-[#242424] rounded-2xl border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <UserCheck className="w-3.5 h-3.5 text-[#1ed760]" />
-                  <span>Import by Spotify Username / Profile Link</span>
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#b3b3b3] font-bold">
-                  Zero Config
-                </span>
-              </div>
-              <p className="text-[11px] text-[#b3b3b3]">
-                Enter any Spotify username or profile URL to import all public playlists automatically:
-              </p>
-              <form onSubmit={handleFetchByUser} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={spotifyUsernameInput}
-                    onChange={(e) => setSpotifyUsernameInput(e.target.value)}
-                    placeholder="e.g. joeld or https://open.spotify.com/user/..."
-                    className="flex-1 px-3.5 py-2 bg-[#181818] border border-[#3e3e3e] focus:border-[#1ed760] rounded-xl text-xs text-white placeholder-[#757575] focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={fetchingByUser || !spotifyUsernameInput.trim()}
-                    className="px-4 py-2 bg-[#1ed760] hover:bg-[#1fdf64] disabled:opacity-50 text-black font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5"
-                  >
-                    {fetchingByUser ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
-                        <span>Importing...</span>
-                      </>
-                    ) : (
-                      <span>Import Account Playlists</span>
-                    )}
-                  </button>
-                </div>
-              </form>
             </div>
 
             {/* SECTION 2: Official Spotify Account OAuth Connection */}
@@ -1552,10 +1440,6 @@ export default function App() {
                 onSelectLanguage={handleLanguageSelect}
                 onAddTrackToPlaylist={handleAddTrackToPlaylist}
                 onCreatePlaylist={() => setShowCreatePlaylistModal(true)}
-                spotifyUser={spotifyUser}
-                onRefreshSpotifyPlaylists={() => setShowSpotifyModal(true)}
-                onSelectPlaylist={handleSelectCustomPlaylist}
-                onOpenSpotifyModal={() => setShowSpotifyModal(true)}
                 activeTab={activeTab}
               />
             )}

@@ -21,8 +21,7 @@ import {
   RadioTower, 
   CloudRain, 
   Timer, 
-  Sliders,
-  Tv, 
+  Sliders, 
   Camera, 
   X, 
   Waves, 
@@ -491,10 +490,6 @@ export default function Player({
   playlist, 
   onRefreshPlaylist, 
   userPlaylists = [], 
-  spotifyUser = null,
-  onRefreshSpotifyPlaylists = null,
-  onSelectPlaylist = null,
-  onOpenSpotifyModal = null,
   onSelectLanguage, 
   onAddTrackToPlaylist, 
   onCreatePlaylist,
@@ -530,7 +525,6 @@ export default function Player({
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [soundModeIndex, setSoundModeIndex] = useState(0);
   const [isCinemaMode, setIsCinemaMode] = useState(false);
-  const [isTvMode, setIsTvMode] = useState(false);
 
   // Liked Songs
   const [likedSongs, setLikedSongs] = useState(() => {
@@ -640,20 +634,6 @@ export default function Player({
           if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'playing';
           }
-          // Mobile background audio handoff:
-          // If YouTube pauses upon mobile screen lock or app switch, seamlessly hand off to HTML5 audio stream!
-          setTimeout(() => {
-            if (ytPlayerRef.current && typeof ytPlayerRef.current.getPlayerState === 'function') {
-              try {
-                const state = ytPlayerRef.current.getPlayerState();
-                const trackToPlay = currentTrack || tracks[0];
-                if (state !== 1 && trackToPlay) {
-                  const curTime = ytPlayerRef.current.getCurrentTime() || 0;
-                  playHtml5Audio(trackToPlay, curTime);
-                }
-              } catch (e) {}
-            }
-          }, 350);
         }
       } else if (document.visibilityState === 'visible') {
         if (isPlaying && wakeLockActive) {
@@ -666,7 +646,7 @@ export default function Player({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       releaseWakeLock();
     };
-  }, [isPlaying, wakeLockActive, currentTrack, tracks]);
+  }, [isPlaying, wakeLockActive]);
 
   // Load YouTube IFrame API for Full Length Songs
   useEffect(() => {
@@ -721,9 +701,8 @@ export default function Player({
               }
             },
             onError: () => {
-              const fallbackTrack = currentTrack || tracks[0];
-              if (audioRef.current && fallbackTrack?.previewUrl) {
-                audioRef.current.src = fallbackTrack.previewUrl;
+              if (audioRef.current && activeTrack?.previewUrl) {
+                audioRef.current.src = activeTrack.previewUrl;
                 audioRef.current.play().catch(() => {});
               }
             }
@@ -733,14 +712,10 @@ export default function Player({
     }
   };
 
-  // Throttled time sync (250ms) to maintain 60 FPS UI without lag or CPU spikes
+  // High-accuracy time sync (100ms) for smooth progress & lyrics tracking
   useEffect(() => {
-    let lastReportedTime = -1;
     syncIntervalRef.current = setInterval(() => {
       if (isDraggingScrubberRef.current) return;
-
-      let newTime = null;
-      let newDur = null;
 
       // 1. Check YouTube Player
       if (ytPlayerRef.current && typeof ytPlayerRef.current.getPlayerState === 'function') {
@@ -749,10 +724,10 @@ export default function Player({
           if (state === 1) { // PLAYING
             const time = ytPlayerRef.current.getCurrentTime();
             if (typeof time === 'number' && !isNaN(time)) {
-              newTime = time;
+              setCurrentTime(time);
             }
             const fullDur = ytPlayerRef.current.getDuration();
-            if (fullDur && fullDur > 10) newDur = fullDur;
+            if (fullDur && fullDur > 10) setDuration(fullDur);
           }
         } catch (e) {}
       }
@@ -760,21 +735,13 @@ export default function Player({
       // 2. Check HTML5 Audio Player
       if (audioRef.current && !audioRef.current.paused) {
         if (typeof audioRef.current.currentTime === 'number' && !isNaN(audioRef.current.currentTime)) {
-          newTime = audioRef.current.currentTime;
+          setCurrentTime(audioRef.current.currentTime);
         }
         if (audioRef.current.duration && !isNaN(audioRef.current.duration)) {
-          newDur = audioRef.current.duration;
+          setDuration(audioRef.current.duration);
         }
       }
-
-      if (newTime !== null && Math.abs(newTime - lastReportedTime) >= 0.25) {
-        lastReportedTime = newTime;
-        setCurrentTime(newTime);
-      }
-      if (newDur !== null) {
-        setDuration(prev => (prev === newDur ? prev : newDur));
-      }
-    }, 250);
+    }, 100);
 
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
@@ -801,17 +768,6 @@ export default function Player({
         toggleMute();
       } else if (e.key === 'f' || e.key === 'F') {
         setIsCinemaMode(prev => !prev);
-      } else if (e.key === 't' || e.key === 'T') {
-        setIsTvMode(prev => !prev);
-      } else if (e.code === 'Escape') {
-        setIsTvMode(false);
-        setIsCinemaMode(false);
-      } else if (e.code === 'ArrowUp') {
-        e.preventDefault();
-        handleVolumeChange({ target: { value: Math.min(1, (isMuted ? 0 : volume) + 0.05) } });
-      } else if (e.code === 'ArrowDown') {
-        e.preventDefault();
-        handleVolumeChange({ target: { value: Math.max(0, (isMuted ? 0 : volume) - 0.05) } });
       }
     };
 
@@ -1102,7 +1058,7 @@ export default function Player({
     }
   };
 
-  const playHtml5Audio = async (track, startTime = 0) => {
+  const playHtml5Audio = async (track) => {
     let audioUrl = track.previewUrl;
     if (!audioUrl) {
       try {
@@ -1115,12 +1071,8 @@ export default function Player({
     }
 
     if (audioRef.current && audioUrl) {
-      if (audioRef.current.src !== audioUrl) {
-        audioRef.current.src = audioUrl;
-      }
-      if (startTime > 0) {
-        audioRef.current.currentTime = startTime;
-      }
+      audioRef.current.src = audioUrl;
+      audioRef.current.currentTime = 0;
       audioRef.current.volume = isMuted ? 0 : volume;
       audioRef.current.playbackRate = playbackSpeed;
       audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
@@ -1476,81 +1428,6 @@ export default function Player({
 
       {/* Upper Spotify Playlist Content (Visible when activeTab === "home") */}
       <div className={activeTab === "home" ? "space-y-6" : "hidden"}>
-        {/* Real Spotify Account Connection Banner (if not connected) */}
-        {!spotifyUser && onOpenSpotifyModal && (
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#1ed760]/20 via-[#181818] to-[#121212] border border-[#1ed760]/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-[#1ed760] text-black flex items-center justify-center shadow-lg shadow-[#1ed760]/30 flex-shrink-0">
-                <SpotifyIcon className="w-6 h-6 fill-black" />
-              </div>
-              <div>
-                <h4 className="text-sm sm:text-base font-extrabold text-white">Connect Your Official Spotify Account</h4>
-                <p className="text-xs text-[#b3b3b3] mt-0.5">
-                  Sign in with Spotify (supports Google account & phone) to automatically access all your personal playlists here.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onOpenSpotifyModal}
-              className="px-5 py-2.5 bg-[#1ed760] hover:bg-[#1fdf64] text-black font-extrabold rounded-full text-xs shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 flex-shrink-0"
-            >
-              <SpotifyIcon className="w-4 h-4 fill-black" />
-              <span>Connect Spotify</span>
-            </button>
-          </div>
-        )}
-
-        {/* Real Spotify Account Playlists Shelf (when connected) */}
-        {spotifyUser && userPlaylists.filter(p => p.isSpotify || p.spotifyPlaylistId || p.id?.startsWith("spotify_")).length > 0 && (
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full bg-[#1ed760] text-black flex items-center justify-center font-bold text-xs">
-                  <SpotifyIcon className="w-3.5 h-3.5 fill-black" />
-                </div>
-                <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                  Your Spotify Playlists ({spotifyUser?.display_name || spotifyUser?.displayName || spotifyUser?.id || "Account"})
-                </h3>
-              </div>
-              {onRefreshSpotifyPlaylists && (
-                <button
-                  onClick={onRefreshSpotifyPlaylists}
-                  className="text-xs text-[#1ed760] hover:underline font-bold flex items-center gap-1.5"
-                  title="Sync new playlists from Spotify"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  <span>Refresh Playlists</span>
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {userPlaylists.filter(p => p.isSpotify || p.spotifyPlaylistId || p.id?.startsWith("spotify_")).map(pl => (
-                <div
-                  key={pl.id}
-                  onClick={() => onSelectPlaylist && onSelectPlaylist(pl)}
-                  className="p-3 bg-[#181818] hover:bg-[#282828] rounded-xl cursor-pointer transition-all flex flex-col justify-between group border border-transparent hover:border-[#1ed760]/30 shadow-md"
-                >
-                  <div className="relative w-full aspect-square rounded-lg overflow-hidden mb-2 bg-[#282828]">
-                    <img 
-                      src={pl.artworkUrl || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300"} 
-                      alt={pl.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute right-2 bottom-2 w-9 h-9 rounded-full bg-[#1ed760] text-black flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-1 group-hover:translate-y-0">
-                      <Play className="w-4 h-4 fill-current ml-0.5" />
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-white truncate group-hover:text-[#1ed760]">{pl.title}</p>
-                    <p className="text-[11px] text-[#b3b3b3] truncate mt-0.5">{pl.tracksCount || pl.tracks?.length || 0} songs</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Spotify Top Greeting & 6 Quick-Access Cards */}
       <div className="space-y-3">
         <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
@@ -2148,15 +2025,6 @@ export default function Player({
               <Smartphone className="w-4 h-4" />
             </button>
 
-            {/* Smart TV / Cinema Fullscreen Mode Button */}
-            <button
-              onClick={() => setIsTvMode(true)}
-              className="p-1.5 rounded text-[#b3b3b3] hover:text-[#1ed760] transition-colors"
-              title="Smart TV Mode (Press T)"
-            >
-              <Tv className="w-4 h-4" />
-            </button>
-
             {/* Volume */}
             <div className="flex items-center gap-1.5">
               <button onClick={toggleMute} className="text-[#b3b3b3] hover:text-white">
@@ -2566,144 +2434,6 @@ export default function Player({
         onSelectPreset={handleSelectPreset}
         currentPreset={selectedEqPreset}
       />
-
-      {/* Smart TV Fullscreen Mode */}
-      {isTvMode && activeTrack && (
-        <div className="fixed inset-0 z-50 bg-[#0d0d0d] flex flex-col justify-between p-8 sm:p-14 text-white animate-in fade-in duration-300">
-          {/* TV Top Header */}
-          <div className="w-full flex items-center justify-between pb-4 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-[#1ed760] flex items-center justify-center text-black font-extrabold shadow-lg">
-                <SpotifyIcon className="w-5 h-5 fill-black" />
-              </div>
-              <div>
-                <span className="text-base font-black tracking-tight text-white">AURABEAT SPOTIFY TV</span>
-                <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-[#1ed760]/20 text-[#1ed760] font-bold">100% Free VIP</span>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsTvMode(false)}
-              className="px-4 py-2 bg-[#282828] hover:bg-[#333] text-white rounded-xl border border-white/15 flex items-center gap-2 text-xs font-bold transition-all"
-            >
-              <Minimize2 className="w-4 h-4" />
-              <span>Exit TV Mode (Esc / T)</span>
-            </button>
-          </div>
-
-          {/* TV Center Stage: Giant Artwork + Meta + Live Synced Lyrics */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center my-auto w-full max-w-7xl mx-auto">
-            {/* Left Col: Giant Artwork & Track Info */}
-            <div className="lg:col-span-5 flex flex-col items-center text-center space-y-6">
-              <div className={`w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 rounded-2xl overflow-hidden shadow-2xl border-4 border-white/10 transition-transform duration-700 ${isPlaying ? "scale-105 ring-4 ring-[#1ed760]/50" : ""}`}>
-                <img 
-                  src={activeTrack.artworkUrl || (activeTrack.youtubeVideoId ? `https://i.ytimg.com/vi/${activeTrack.youtubeVideoId}/hqdefault.jpg` : "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800")} 
-                  alt={activeTrack.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="space-y-2 max-w-md">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight line-clamp-2 leading-tight">
-                  {activeTrack.title}
-                </h1>
-                <p className="text-xl sm:text-2xl text-[#b3b3b3] font-semibold line-clamp-1">
-                  {activeTrack.artist}
-                </p>
-                <p className="text-sm text-[#1ed760] font-mono font-bold">
-                  {activeTrack.album || activeTrack.genre || "Spotify Master Stream"}
-                </p>
-              </div>
-            </div>
-
-            {/* Right Col: Live Karaoke Lyrics display */}
-            <div className="lg:col-span-7 bg-[#181818]/80 border border-white/10 rounded-3xl p-6 sm:p-8 h-[380px] sm:h-[450px] overflow-y-auto scrollbar-thin flex flex-col justify-center text-center">
-              {lyrics && lyrics.length > 0 ? (
-                <div className="space-y-4 my-auto">
-                  {lyrics.slice(Math.max(0, activeLyricIndex - 2), activeLyricIndex + 4).map((line, idx) => {
-                    const isCur = line.start <= currentTime && (!lyrics[activeLyricIndex + 1] || lyrics[activeLyricIndex + 1].start > currentTime);
-                    return (
-                      <p 
-                        key={idx} 
-                        className={`text-xl sm:text-2xl md:text-3xl font-extrabold transition-all duration-300 ${isCur ? "text-[#1ed760] scale-105" : "text-white/40"}`}
-                      >
-                        {line.text}
-                      </p>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center space-y-3">
-                  <p className="text-2xl font-bold text-white/60">♪ Pure High-Fidelity Audio Stream ♪</p>
-                  <p className="text-sm text-[#b3b3b3]">Streaming 320kbps master sound</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* TV Bottom Scrubber & Big Controls & Remote Control Legend */}
-          <div className="w-full max-w-4xl mx-auto space-y-4 pt-4 border-t border-white/10">
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-sm font-bold text-[#b3b3b3] w-12 text-right">{formatTime(currentTime)}</span>
-              <input 
-                type="range"
-                min="0"
-                max={duration || 210}
-                step="0.5"
-                value={currentTime}
-                onChange={handleSeek}
-                className="w-full h-3 bg-[#282828] accent-[#1ed760] rounded-full cursor-pointer"
-              />
-              <span className="font-mono text-sm font-bold text-[#b3b3b3] w-12">{formatTime(duration || 210)}</span>
-            </div>
-
-            <div className="flex items-center justify-between">
-              {/* TV Remote legend */}
-              <div className="text-xs text-[#888] font-mono hidden md:flex items-center gap-4">
-                <span>[Space] Play/Pause</span>
-                <span>[Left/Right] ±10s</span>
-                <span>[Up/Down] Volume</span>
-                <span>[T/Esc] Exit TV</span>
-              </div>
-
-              {/* Central Large Playback Controls */}
-              <div className="flex items-center gap-6 mx-auto">
-                <button 
-                  onClick={handlePrevTrack} 
-                  className="p-3 bg-[#282828] hover:bg-[#333] text-white rounded-full transition-all active:scale-95"
-                  title="Previous Track"
-                >
-                  <SkipBack className="w-6 h-6 fill-current" />
-                </button>
-                <button 
-                  onClick={togglePlay} 
-                  className="p-5 bg-[#1ed760] hover:bg-[#1fdf64] text-black rounded-full shadow-2xl transition-all hover:scale-105 active:scale-95"
-                  title={isPlaying ? "Pause" : "Play"}
-                >
-                  {isPlaying ? (
-                    <Pause className="w-8 h-8 fill-current" />
-                  ) : (
-                    <Play className="w-8 h-8 fill-current ml-1" />
-                  )}
-                </button>
-                <button 
-                  onClick={handleNextTrack} 
-                  className="p-3 bg-[#282828] hover:bg-[#333] text-white rounded-full transition-all active:scale-95"
-                  title="Next Track"
-                >
-                  <SkipForward className="w-6 h-6 fill-current" />
-                </button>
-              </div>
-
-              {/* Volume */}
-              <div className="flex items-center gap-2">
-                <button onClick={toggleMute} className="text-[#b3b3b3] hover:text-white">
-                  {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 text-rose-400" /> : <Volume2 className="w-5 h-5" />}
-                </button>
-                <span className="text-xs font-mono text-[#b3b3b3]">{Math.round((isMuted ? 0 : volume) * 100)}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Fullscreen Cinema Mode */}
       {isCinemaMode && activeTrack && (
