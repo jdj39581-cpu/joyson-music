@@ -223,23 +223,43 @@ async function getUserSpotifyProfile(userAccessToken) {
  * Fetch Current User's Personal Spotify Playlists
  */
 async function getUserSpotifyPlaylists(userAccessToken) {
-  const res = await axios.get('https://api.spotify.com/v1/me/playlists?limit=50', {
-    headers: { Authorization: `Bearer ${userAccessToken}` },
-    timeout: 6000,
-  });
+  let allPlaylists = [];
+  let nextUrl = 'https://api.spotify.com/v1/me/playlists?limit=50';
+  let page = 0;
 
-  const items = res.data.items || [];
-  return items.map(p => ({
-    id: `spotify_${p.id}`,
-    spotifyPlaylistId: p.id,
-    title: p.name,
-    description: p.description || 'Spotify Personal Playlist',
-    emoji: '🟢',
-    color: 'from-[#1ed760] to-slate-900',
-    artworkUrl: p.images?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300',
-    tracksCount: p.tracks?.total || 0,
-    spotifyUrl: p.external_urls?.spotify
-  }));
+  while (nextUrl && page < 10) {
+    page++;
+    try {
+      const res = await axios.get(nextUrl, {
+        headers: { Authorization: `Bearer ${userAccessToken}` },
+        timeout: 7000,
+      });
+
+      const items = res.data.items || [];
+      for (const p of items) {
+        if (!p) continue;
+        allPlaylists.push({
+          id: `spotify_${p.id}`,
+          spotifyPlaylistId: p.id,
+          title: p.name,
+          description: p.description || 'Spotify Personal Playlist',
+          emoji: '🟢',
+          color: 'from-[#1ed760] to-slate-900',
+          artworkUrl: p.images?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300',
+          tracksCount: p.tracks?.total || 0,
+          owner: p.owner?.display_name || 'Spotify User',
+          spotifyUrl: p.external_urls?.spotify,
+          isSpotify: true
+        });
+      }
+      nextUrl = res.data.next;
+    } catch (err) {
+      console.warn('Pagination error at page', page, err.message);
+      break;
+    }
+  }
+
+  return allPlaylists;
 }
 
 /**
@@ -253,67 +273,152 @@ async function getSpotifyPlaylist(playlistIdOrUrl, userAccessToken = null) {
     playlistId = match[1];
   }
 
-  // If userAccessToken is provided, attempt official Spotify Web API first
+  // If userAccessToken is provided, fetch all tracks directly from official Spotify Web API with pagination
   if (userAccessToken) {
     try {
-      const detailsRes = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}?fields=name,description,images`, {
+      const detailsRes = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}?fields=name,description,images,owner`, {
         headers: { Authorization: `Bearer ${userAccessToken}` },
         timeout: 6000
       });
       const playlistDetails = detailsRes.data;
 
-      const tracksRes = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`, {
-        headers: { Authorization: `Bearer ${userAccessToken}` },
-        timeout: 6000
-      });
-      const items = tracksRes.data.items || [];
-      const tracks = items.map((item, idx) => {
-        const t = item.track;
-        if (!t || !t.name) return null;
-        const durationMs = t.duration_ms || 0;
-        const mins = Math.floor(durationMs / 60000);
-        const secs = Math.floor((durationMs % 60000) / 1000);
-        const durationFormatted = durationMs > 0 ? `${mins}:${secs < 10 ? '0' : ''}${secs}` : '3:30';
-        const artistNames = (t.artists || []).map(a => a.name).join(', ');
-        const artwork = t.album?.images?.[0]?.url || playlistDetails?.images?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
+      let allTracks = [];
+      let nextUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`;
+      let trackPage = 0;
 
-        return {
-          title: t.name,
-          artist: artistNames,
-          album: t.album?.name || playlistDetails?.name || 'Spotify Track',
-          duration: durationFormatted,
-          streamCount: 'Spotify Official',
-          popularity: t.popularity || 85,
-          reason: 'Official Spotify Track',
-          artworkUrl: artwork,
-          previewUrl: t.preview_url || null,
-          spotifyUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
-          youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(t.name + ' ' + artistNames)}`,
-          candidateVideoIds: [],
-          youtubeVideoId: null,
-          isSpotify: true
-        };
-      }).filter(Boolean);
+      while (nextUrl && trackPage < 10) {
+        trackPage++;
+        const tracksRes = await axios.get(nextUrl, {
+          headers: { Authorization: `Bearer ${userAccessToken}` },
+          timeout: 7000
+        });
+        const items = tracksRes.data.items || [];
+        for (const item of items) {
+          const t = item.track;
+          if (!t || !t.name) continue;
+          const durationMs = t.duration_ms || 0;
+          const mins = Math.floor(durationMs / 60000);
+          const secs = Math.floor((durationMs % 60000) / 1000);
+          const durationFormatted = durationMs > 0 ? `${mins}:${secs < 10 ? '0' : ''}${secs}` : '3:30';
+          const artistNames = (t.artists || []).map(a => a.name).join(', ');
+          const artwork = t.album?.images?.[0]?.url || playlistDetails?.images?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
 
-      if (tracks.length > 0) {
+          allTracks.push({
+            title: t.name,
+            artist: artistNames,
+            album: t.album?.name || playlistDetails?.name || 'Spotify Track',
+            duration: durationFormatted,
+            streamCount: 'Spotify Official',
+            popularity: t.popularity || 85,
+            reason: 'Official Spotify Track',
+            artworkUrl: artwork,
+            previewUrl: t.preview_url || null,
+            spotifyUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
+            youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(t.name + ' ' + artistNames)}`,
+            candidateVideoIds: [],
+            youtubeVideoId: null,
+            isSpotify: true
+          });
+        }
+        nextUrl = tracksRes.data.next;
+      }
+
+      if (allTracks.length > 0) {
         return {
           id: `spotify_${playlistId}`,
           title: playlistDetails?.name || 'Spotify Playlist',
           description: playlistDetails?.description || 'Official Spotify Playlist',
           emoji: '🟢',
           color: 'from-[#1ed760] to-slate-900',
-          artworkUrl: playlistDetails?.images?.[0]?.url || tracks[0]?.artworkUrl || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
-          tracks,
+          artworkUrl: playlistDetails?.images?.[0]?.url || allTracks[0]?.artworkUrl || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
+          owner: playlistDetails?.owner?.display_name || 'Spotify User',
+          tracks: allTracks,
           isSpotify: true
         };
       }
     } catch (apiErr) {
-      // Fallback to embed extractor below
+      console.warn('Spotify API direct playlist fetch failed, falling back to embed:', apiErr.message);
     }
   }
 
   // Fallback to high-res embed extractor
   return await importSpotifyPlaylist(playlistId);
+}
+
+/**
+ * Refresh user access token using refresh_token
+ */
+async function refreshUserAccessToken(refreshToken) {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  const authString = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+  const res = await axios.post(
+    'https://accounts.spotify.com/api/token',
+    `grant_type=refresh_token&refresh_token=${encodeURIComponent(refreshToken)}`,
+    {
+      headers: {
+        Authorization: `Basic ${authString}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      timeout: 6000,
+    }
+  );
+  return res.data;
+}
+
+/**
+ * Fetch public playlists for any Spotify user ID / profile without OAuth
+ */
+async function fetchPlaylistsBySpotifyUser(userIdOrUrl) {
+  let cleanUser = (userIdOrUrl || '').trim();
+  const match = cleanUser.match(/user[\/:]([a-zA-Z0-9._-]+)/);
+  if (match) cleanUser = match[1];
+
+  try {
+    const url = `https://open.spotify.com/user/${cleanUser}`;
+    const res = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      timeout: 7000
+    });
+    const tag = '<script id="initialState" type="text/plain">';
+    const idx = res.data.indexOf(tag);
+    if (idx === -1) throw new Error('User profile not found');
+
+    const b64 = res.data.slice(idx + tag.length, res.data.indexOf('</script>', idx));
+    const json = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'));
+    const itemKey = Object.keys(json.entities?.items || {})[0];
+    const item = json.entities?.items?.[itemKey];
+    const rawPlaylists = item?.publicPlaylistsV2?.items || [];
+
+    const playlists = rawPlaylists.map(p => {
+      const d = p.data || {};
+      const uri = p._uri || d.uri || '';
+      const id = uri.replace('spotify:playlist:', '');
+      return {
+        id: `spotify_${id}`,
+        spotifyPlaylistId: id,
+        title: d.name || 'Spotify Playlist',
+        description: 'User Spotify Playlist',
+        emoji: '🟢',
+        color: 'from-[#1ed760] to-slate-900',
+        artworkUrl: d.images?.items?.[0]?.sources?.[0]?.url || 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300',
+        tracksCount: 0,
+        owner: item?.name || cleanUser,
+        spotifyUrl: `https://open.spotify.com/playlist/${id}`,
+        isSpotify: true
+      };
+    }).filter(p => p.spotifyPlaylistId);
+
+    return {
+      username: item?.name || cleanUser,
+      avatarUrl: item?.avatar?.sources?.[0]?.url || null,
+      playlists
+    };
+  } catch (err) {
+    throw new Error('Could not fetch playlists for this Spotify account: ' + err.message);
+  }
 }
 
 module.exports = {
@@ -323,5 +428,7 @@ module.exports = {
   getSpotifyAuthUrl,
   handleSpotifyCallback,
   getUserSpotifyProfile,
-  getUserSpotifyPlaylists
+  getUserSpotifyPlaylists,
+  refreshUserAccessToken,
+  fetchPlaylistsBySpotifyUser
 };

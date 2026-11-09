@@ -22,7 +22,9 @@ const {
   getSpotifyAuthUrl,
   handleSpotifyCallback,
   getUserSpotifyProfile,
-  getUserSpotifyPlaylists
+  getUserSpotifyPlaylists,
+  refreshUserAccessToken,
+  fetchPlaylistsBySpotifyUser
 } = require('./spotify');
 
 const app = express();
@@ -134,6 +136,19 @@ app.get('/api/spotify/config', (req, res) => {
 });
 
 // Spotify Account OAuth Login
+// Spotify Account OAuth Auth URL (JSON for SPA clients)
+app.get('/api/spotify/auth-url', (req, res) => {
+  const redirectUri = resolveSpotifyRedirectUri(req);
+  const referer = req.headers['referer'] || '/';
+  const statePayload = Buffer.from(JSON.stringify({
+    redirectUri,
+    returnUrl: referer
+  })).toString('base64');
+  const authUrl = getSpotifyAuthUrl(redirectUri, statePayload);
+  res.json({ authUrl, redirectUri });
+});
+
+// Spotify Account OAuth Login (Browser Redirect)
 app.get('/api/spotify/login', (req, res) => {
   const redirectUri = resolveSpotifyRedirectUri(req);
   const referer = req.headers['referer'] || '/';
@@ -171,6 +186,8 @@ const handleSpotifyCallbackRoute = async (req, res) => {
 
     const userPayload = encodeURIComponent(JSON.stringify({
       accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token || null,
+      expiresIn: tokenData.expires_in || 3600,
       profile,
       playlists
     }));
@@ -187,17 +204,64 @@ const handleSpotifyCallbackRoute = async (req, res) => {
 app.get('/api/spotify/callback', handleSpotifyCallbackRoute);
 app.get('/callback', handleSpotifyCallbackRoute);
 
+// Refresh Spotify access token using refresh_token
+app.post('/api/spotify/refresh', async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) return res.status(400).json({ error: 'Refresh token required' });
+  try {
+    const data = await refreshUserAccessToken(refreshToken);
+    res.json({ accessToken: data.access_token, expiresIn: data.expires_in });
+  } catch (err) {
+    res.status(500).json({ error: 'Token refresh failed' });
+  }
+});
+
+// Import all playlists by Spotify Username / Profile URL without OAuth
+app.post('/api/spotify/fetch-by-user', async (req, res) => {
+  const { username } = req.body;
+  if (!username || !username.trim()) return res.status(400).json({ error: 'Username or profile URL required' });
+  try {
+    const result = await fetchPlaylistsBySpotifyUser(username.trim());
+    res.json(result);
+  } catch (err) {
+    console.error('fetch-by-user error:', err.message);
+    res.status(500).json({ error: err.message || 'Could not fetch playlists for this account' });
+  }
+});
+
 // Fetch current user's personal playlists with their token
 app.get('/api/spotify/user-playlists', async (req, res) => {
   const authHeader = req.headers['authorization'];
   const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.slice(7) : (req.query.token || null);
   if (!token) return res.status(401).json({ error: 'Spotify access token required' });
   try {
+    let profile = null;
+    try {
+      profile = await getUserSpotifyProfile(token);
+    } catch (e) {}
     const playlists = await getUserSpotifyPlaylists(token);
-    res.json({ playlists });
+    res.json({ profile, playlists });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch user Spotify playlists' });
   }
+});
+
+// Fetch Spotify user profile
+app.get('/api/spotify/user-profile', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.slice(7) : (req.query.token || null);
+  if (!token) return res.status(401).json({ error: 'Spotify access token required' });
+  try {
+    const profile = await getUserSpotifyProfile(token);
+    res.json({ profile });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Disconnect Spotify endpoint
+app.post('/api/spotify/disconnect', (req, res) => {
+  res.json({ success: true, message: 'Disconnected' });
 });
 
 // Fetch official or personal Spotify Playlist directly by ID

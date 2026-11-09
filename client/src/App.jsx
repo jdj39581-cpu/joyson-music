@@ -9,7 +9,11 @@ import {
   Heart, 
   Sparkles, 
   AlertCircle, 
-  RefreshCw, 
+  RefreshCw,
+  RotateCw,
+  Tv,
+  ExternalLink,
+  UserCheck, 
   Smartphone, 
   QrCode, 
   X, 
@@ -133,6 +137,8 @@ export default function App() {
   const [spotifyDirectToken, setSpotifyDirectToken] = useState("");
   const [syncingSpotify, setSyncingSpotify] = useState(false);
   const [customCallbackUri, setCustomCallbackUri] = useState("");
+  const [spotifyUsernameInput, setSpotifyUsernameInput] = useState("");
+  const [fetchingByUser, setFetchingByUser] = useState(false);
 
   // Parse Spotify OAuth callback on load
   useEffect(() => {
@@ -622,6 +628,47 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* SECTION 1.5: Instant Import by Spotify Username / Profile URL (Zero Setup) */}
+            <div className="p-4 bg-[#242424] rounded-2xl border border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <UserCheck className="w-3.5 h-3.5 text-[#1ed760]" />
+                  <span>Import by Spotify Username / Profile Link</span>
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#b3b3b3] font-bold">
+                  Zero Config
+                </span>
+              </div>
+              <p className="text-[11px] text-[#b3b3b3]">
+                Enter any Spotify username or profile URL to import all public playlists automatically:
+              </p>
+              <form onSubmit={handleFetchByUser} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={spotifyUsernameInput}
+                    onChange={(e) => setSpotifyUsernameInput(e.target.value)}
+                    placeholder="e.g. joeld or https://open.spotify.com/user/..."
+                    className="flex-1 px-3.5 py-2 bg-[#181818] border border-[#3e3e3e] focus:border-[#1ed760] rounded-xl text-xs text-white placeholder-[#757575] focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={fetchingByUser || !spotifyUsernameInput.trim()}
+                    className="px-4 py-2 bg-[#1ed760] hover:bg-[#1fdf64] disabled:opacity-50 text-black font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center gap-1.5"
+                  >
+                    {fetchingByUser ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                        <span>Importing...</span>
+                      </>
+                    ) : (
+                      <span>Import Account Playlists</span>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
 
             {/* SECTION 2: Official Spotify Account OAuth Connection */}
