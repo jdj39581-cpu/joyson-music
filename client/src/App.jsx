@@ -33,6 +33,71 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
+const DEFAULT_PLAYLIST = {
+  id: "kannada",
+  mood: "Kannada Superhits",
+  vibeTitle: "Kannada Superhits",
+  vibeDescription: "Top Sandalwood Mass & Melodies • 100% Free & Ad-Free",
+  emoji: "🟡",
+  genre: "Kannada Mass",
+  energy: "98% High Energy",
+  colorTheme: ["#1ed760", "#121212"],
+  artworkUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600",
+  spotifyUrl: "https://open.spotify.com/playlist/37i9dQZF1DX6Thddij2336",
+  tracks: [
+    {
+      title: "Ra Ra Rakkamma",
+      artist: "Nakash Aziz, Sunidhi Chauhan",
+      album: "Vikrant Rona",
+      duration: "3:45",
+      artworkUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300",
+      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/6c/d1/8a/6cd18ab5-f0e2-63aa-8d02-e2c7a7ea9db2/mzaf_10574971840003058866.plus.aac.p.m4a",
+      youtubeVideoId: "7sWwLgT1B98",
+      spotifyUrl: "https://open.spotify.com/search/Ra%20Ra%20Rakkamma"
+    },
+    {
+      title: "Singara Siriye",
+      artist: "Vijay Prakash, Ananya Bhat",
+      album: "Kantara",
+      duration: "4:42",
+      artworkUrl: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300",
+      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/33/c4/7a/33c47a50-2f1a-b0a7-bc13-bfa58826d9c6/mzaf_12403759972304951475.plus.aac.p.m4a",
+      youtubeVideoId: "1pM11YQ_L_o",
+      spotifyUrl: "https://open.spotify.com/search/Singara%20Siriye"
+    },
+    {
+      title: "Belakina Kavithe",
+      artist: "Sanjith Hegde, Sangeetha Katti",
+      album: "Banaras",
+      duration: "4:12",
+      artworkUrl: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300",
+      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/0c/39/3c/0c393ce0-0f30-f203-d023-e2003cba7c03/mzaf_10915354508492290408.plus.aac.p.m4a",
+      youtubeVideoId: "g5J0Qz1bQyA",
+      spotifyUrl: "https://open.spotify.com/search/Belakina%20Kavithe"
+    },
+    {
+      title: "Dwapara",
+      artist: "Jaskaran Singh",
+      album: "Krishnam Pranaya Sakhi",
+      duration: "3:58",
+      artworkUrl: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300",
+      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/44/e9/87/44e9877e-97ec-ca37-8854-46c03dcda9ec/mzaf_16480579998188172906.plus.aac.p.m4a",
+      youtubeVideoId: "bYg2_N85TfA",
+      spotifyUrl: "https://open.spotify.com/search/Dwapara"
+    },
+    {
+      title: "Tagaru Banthu Tagaru",
+      artist: "Anthony Daasan",
+      album: "Tagaru",
+      duration: "3:25",
+      artworkUrl: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300",
+      previewUrl: "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/e5/bd/a6/e5bda616-e41c-81bb-623e-634d1b82fa46/mzaf_15082498701389814457.plus.aac.p.m4a",
+      youtubeVideoId: "u_s1iWpC7aQ",
+      spotifyUrl: "https://open.spotify.com/search/Tagaru%20Banthu%20Tagaru"
+    }
+  ]
+};
+
 const HISTORY_KEY = "aurabeat_mood_history";
 const PLAYLISTS_KEY = "aurabeat_user_playlists";
 
@@ -93,7 +158,7 @@ function SpotifyIcon({ className = "w-4 h-4" }) {
 }
 
 export default function App() {
-  const [playlist, setPlaylist] = useState(null);
+  const [playlist, setPlaylist] = useState(DEFAULT_PLAYLIST);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [history, setHistory] = useState([]);

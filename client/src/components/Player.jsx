@@ -2612,8 +2612,8 @@ export default function Player({
             <div className="lg:col-span-7 bg-[#181818]/80 border border-white/10 rounded-3xl p-6 sm:p-8 h-[380px] sm:h-[450px] overflow-y-auto scrollbar-thin flex flex-col justify-center text-center">
               {lyrics && lyrics.length > 0 ? (
                 <div className="space-y-4 my-auto">
-                  {lyrics.slice(Math.max(0, currentLyricIndex - 2), currentLyricIndex + 4).map((line, idx) => {
-                    const isCur = line.start <= currentTime && (!lyrics[currentLyricIndex + 1] || lyrics[currentLyricIndex + 1].start > currentTime);
+                  {lyrics.slice(Math.max(0, activeLyricIndex - 2), activeLyricIndex + 4).map((line, idx) => {
+                    const isCur = line.start <= currentTime && (!lyrics[activeLyricIndex + 1] || lyrics[activeLyricIndex + 1].start > currentTime);
                     return (
                       <p 
                         key={idx} 
